@@ -1,0 +1,9 @@
+.env
+robnhud.db
+cloudflared.exe
+tunnel.log
+tunnel_url.txt
+tunnel_token.txt
+__pycache__/
+*.pyc
+.playwright-mcp/

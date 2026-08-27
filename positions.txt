@@ -1,0 +1,2 @@
+XRP,crypto,434.841,1.05
+DOGE,crypto,1.72,0.15
