@@ -10,3 +10,8 @@ __pycache__/
 SESSION_SUMMARY.md
 positions.txt
 .worktrees/
+
+# Rust
+/target/
+*.rs.bk
+Cargo.lock

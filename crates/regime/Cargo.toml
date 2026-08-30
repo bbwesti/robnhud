@@ -1,0 +1,9 @@
+[package]
+name = "vigil-regime"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+vigil-core = { path = "../core" }
+serde = { workspace = true }
+serde_json = { workspace = true }
