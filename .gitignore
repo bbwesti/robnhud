@@ -7,3 +7,5 @@ tunnel_token.txt
 __pycache__/
 *.pyc
 .playwright-mcp/
+SESSION_SUMMARY.md
+positions.txt
