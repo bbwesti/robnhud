@@ -9,3 +9,4 @@ __pycache__/
 .playwright-mcp/
 SESSION_SUMMARY.md
 positions.txt
+.worktrees/
