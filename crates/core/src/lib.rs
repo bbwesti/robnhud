@@ -1,15 +1,8 @@
-//! CRYPTEK VIGIL — Core types, config, and database.
+pub mod config;
+pub mod types;
+pub mod db;
+pub mod error;
 
-pub fn hello() -> &'static str {
-    "Vigil Core online"
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_hello() {
-        assert_eq!(hello(), "Vigil Core online");
-    }
-}
+pub use config::Config;
+pub use types::*;
+pub use error::{Result, VigilError};
