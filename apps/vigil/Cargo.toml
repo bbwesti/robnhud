@@ -1,0 +1,25 @@
+[package]
+name = "cryptek-vigil"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+vigil-core = { path = "../../crates/core" }
+vigil-ingestor = { path = "../../crates/ingestor" }
+vigil-worm = { path = "../../crates/worm" }
+vigil-regime = { path = "../../crates/regime" }
+vigil-quant = { path = "../../crates/quant" }
+vigil-alerts = { path = "../../crates/alerts" }
+vigil-digest = { path = "../../crates/digest" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+chrono = { workspace = true }
+anyhow = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = "0.3"
+axum = "0.7"
+tower-http = { version = "0.6", features = ["fs", "cors"] }
+rust-embed = "8"
+rusqlite = { version = "0.32", features = ["bundled"] }
+reqwest = { version = "0.12", features = ["json"] }

@@ -1,0 +1,15 @@
+[package]
+name = "vigil-worm"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+vigil-core = { path = "../core" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+chrono = { workspace = true }
+thiserror = { workspace = true }
+rusqlite = { version = "0.32", features = ["bundled"] }
+sha2 = "0.10"
+hex = "0.4"
+uuid = { version = "1", features = ["v4", "serde"] }

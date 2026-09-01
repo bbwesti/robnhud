@@ -1,0 +1,15 @@
+[package]
+name = "vigil-digest"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+vigil-core = { path = "../core" }
+vigil-regime = { path = "../regime" }
+vigil-quant = { path = "../quant" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+chrono = { workspace = true }
+thiserror = { workspace = true }
+lettre = "0.11"
+tracing = { workspace = true }

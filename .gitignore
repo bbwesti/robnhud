@@ -10,3 +10,17 @@ __pycache__/
 SESSION_SUMMARY.md
 positions.txt
 .worktrees/
+
+# Rust
+/target/
+*.rs.bk
+Cargo.lock
+
+# Legacy Python (replaced by Rust)
+*.py
+*.pyc
+requirements.txt
+start_robnhud.bat
+scheduler.log
+scheduler.pid
+scheduler_output.log
