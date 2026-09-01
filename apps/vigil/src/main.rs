@@ -262,7 +262,7 @@ async fn main() -> anyhow::Result<()> {
     let app = Router::new()
         .route("/", get(serve_index))
         .route("/api/data", get(api_data))
-        .route("/assets/{*path}", get(serve_asset))
+        .route("/assets/*path", get(serve_asset))
         .with_state(state.clone());
 
     let sched_state = state.clone();
