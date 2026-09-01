@@ -21,6 +21,11 @@ let canvas            = null;
 let ctx               = null;
 let animFrameId       = null;
 let lastData          = null;
+let historyData       = {};   // { [symbol]: [price, ...] }
+let portfolioHistory  = [];   // [ totalValue, ... ]
+let holdingsSortKey   = 'value';
+let holdingsExpanded  = false;
+const HISTORY_INTERVAL_MS = 300_000; // 5 minutes
 
 // ── Formatters ────────────────────────────────────────────────
 const fmt = {
@@ -56,6 +61,182 @@ function dirClass(v) {
   const n = Number(v);
   if (isNaN(n)) return '';
   return n >= 0 ? 'up' : 'down';
+}
+
+// ── Sparkline Renderer ────────────────────────────────────────
+function drawSparkline(canvasEl, prices, color) {
+  color = color || '#00ff66';
+  if (!canvasEl || !prices || prices.length < 2) return;
+  const dpr = window.devicePixelRatio || 1;
+  const w = canvasEl.width;
+  const h = canvasEl.height;
+  const c = canvasEl.getContext('2d');
+  c.clearRect(0, 0, w, h);
+
+  const min = Math.min.apply(null, prices);
+  const max = Math.max.apply(null, prices);
+  const range = max - min || 1;
+
+  c.beginPath();
+  c.strokeStyle = color;
+  c.lineWidth = 1.5;
+  c.lineJoin = 'round';
+
+  prices.forEach(function(p, i) {
+    const x = (i / (prices.length - 1)) * w;
+    const y = h - ((p - min) / range) * (h - 4) - 2;
+    if (i === 0) c.moveTo(x, y);
+    else c.lineTo(x, y);
+  });
+  c.stroke();
+
+  // Gradient fill under the line
+  const isRgb = color.startsWith('rgb');
+  let fillColor;
+  if (isRgb) {
+    fillColor = color.replace(')', ',0.12)').replace('rgb', 'rgba');
+  } else if (color.startsWith('#')) {
+    // Convert hex to rgba
+    const r = parseInt(color.slice(1,3), 16);
+    const g = parseInt(color.slice(3,5), 16);
+    const b = parseInt(color.slice(5,7), 16);
+    fillColor = 'rgba(' + r + ',' + g + ',' + b + ',0.12)';
+  } else {
+    fillColor = 'rgba(0,255,102,0.12)';
+  }
+  const grad = c.createLinearGradient(0, 0, 0, h);
+  grad.addColorStop(0, fillColor);
+  grad.addColorStop(1, 'transparent');
+  // Close path for fill
+  const lastX = w;
+  const lastY = h - ((prices[prices.length - 1] - min) / range) * (h - 4) - 2;
+  c.beginPath();
+  prices.forEach(function(p, i) {
+    const x = (i / (prices.length - 1)) * w;
+    const y = h - ((p - min) / range) * (h - 4) - 2;
+    if (i === 0) c.moveTo(x, y);
+    else c.lineTo(x, y);
+  });
+  c.lineTo(lastX, h);
+  c.lineTo(0, h);
+  c.closePath();
+  c.fillStyle = grad;
+  c.fill();
+}
+
+// Attach tooltip behavior to a sparkline canvas
+function attachSparklineTooltip(canvasEl, prices, symbol) {
+  const tooltip = document.getElementById('sparkline-tooltip');
+  if (!tooltip || !prices || prices.length < 2) return;
+
+  canvasEl.addEventListener('mousemove', function(e) {
+    const rect = canvasEl.getBoundingClientRect();
+    const relX = e.clientX - rect.left;
+    const idx = Math.min(prices.length - 1, Math.max(0, Math.round((relX / rect.width) * (prices.length - 1))));
+    const price = prices[idx];
+    tooltip.textContent = (symbol ? symbol + ': ' : '') + fmt.currency(price);
+    tooltip.style.display = 'block';
+    tooltip.style.left = (e.clientX + 10) + 'px';
+    tooltip.style.top  = (e.clientY - 24) + 'px';
+  });
+
+  canvasEl.addEventListener('mouseleave', function() {
+    tooltip.style.display = 'none';
+  });
+}
+
+// ── History Fetch ─────────────────────────────────────────────
+async function fetchHistory() {
+  try {
+    const res = await fetch('/api/history');
+    if (!res.ok) return;
+    const data = await res.json();
+    const rows = data.history || [];
+
+    // Group by symbol, oldest first
+    const grouped = {};
+    rows.forEach(function(r) {
+      if (!grouped[r.symbol]) grouped[r.symbol] = [];
+      grouped[r.symbol].unshift(r.price); // rows come DESC, reverse to ASC
+    });
+    historyData = grouped;
+
+    // Build portfolio total history: sum values per timestamp bucket
+    // Use the latest lastData holdings for qty mapping
+    if (lastData && lastData.holdings) {
+      const qtyMap = {};
+      lastData.holdings.forEach(function(h) { qtyMap[h.symbol] = h.qty; });
+
+      // Find shortest history length across held symbols
+      const heldSymbols = lastData.holdings.map(function(h) { return h.symbol; });
+      const lengths = heldSymbols.map(function(s) { return (grouped[s] || []).length; }).filter(function(l) { return l > 0; });
+      if (lengths.length > 0) {
+        const minLen = Math.min.apply(null, lengths);
+        const portVals = [];
+        for (let i = 0; i < minLen; i++) {
+          let total = 0;
+          heldSymbols.forEach(function(s) {
+            const arr = grouped[s] || [];
+            const offset = arr.length - minLen;
+            const price = arr[offset + i] || 0;
+            total += price * (qtyMap[s] || 0);
+          });
+          portVals.push(total);
+        }
+        portfolioHistory = portVals;
+        drawVaultChart();
+      }
+    }
+
+    // Redraw any existing sparklines in holding rows
+    if (lastData && lastData.holdings) {
+      redrawHoldingSparklines();
+    }
+    // Redraw index sparklines
+    if (lastData && lastData.indices) {
+      redrawIndexSparklines();
+    }
+  } catch(err) {
+    console.warn('[VIGIL] history fetch error:', err);
+  }
+}
+
+function drawVaultChart() {
+  const el = document.getElementById('vault-chart');
+  if (!el || portfolioHistory.length < 2) return;
+  // Color: green if net positive trend, red otherwise
+  const trend = portfolioHistory[portfolioHistory.length - 1] - portfolioHistory[0];
+  const color = trend >= 0 ? '#00ff66' : '#ff3333';
+  drawSparkline(el, portfolioHistory, color);
+  attachSparklineTooltip(el, portfolioHistory, 'VAULT');
+}
+
+function redrawHoldingSparklines() {
+  const list = document.getElementById('holdings-list');
+  if (!list) return;
+  list.querySelectorAll('.holding-row').forEach(function(row) {
+    const sym = row.dataset.symbol;
+    const prices = historyData[sym];
+    const canvasEl = row.querySelector('canvas.sparkline');
+    if (canvasEl && prices && prices.length >= 2) {
+      const trend = prices[prices.length - 1] - prices[0];
+      drawSparkline(canvasEl, prices, trend >= 0 ? '#00ff66' : '#ff3333');
+    }
+  });
+}
+
+function redrawIndexSparklines() {
+  const grid = document.getElementById('indices-grid');
+  if (!grid) return;
+  grid.querySelectorAll('.index-card').forEach(function(card) {
+    const sym = card.dataset.symbol;
+    const prices = historyData[sym];
+    const canvasEl = card.querySelector('canvas.sparkline');
+    if (canvasEl && prices && prices.length >= 2) {
+      const trend = prices[prices.length - 1] - prices[0];
+      drawSparkline(canvasEl, prices, trend >= 0 ? '#00ff66' : '#ff3333');
+    }
+  });
 }
 
 // ── Clock ─────────────────────────────────────────────────────
@@ -112,6 +293,13 @@ async function fetchData() {
     updateStatus(data.status);
 
     resetCountdown();
+
+    // After DOM is updated, redraw sparklines from cached history
+    if (Object.keys(historyData).length > 0) {
+      redrawHoldingSparklines();
+      redrawIndexSparklines();
+      drawVaultChart();
+    }
   } catch (err) {
     console.error('[VIGIL] fetch error:', err);
     flashError('TRANSMISSION INTERRUPTED — ' + err.message);
@@ -140,6 +328,18 @@ function updatePortfolio(p) {
   }
 }
 
+function sortedHoldings(holdings) {
+  const arr = holdings.slice();
+  if (holdingsSortKey === 'value') {
+    arr.sort(function(a, b) { return Number(b.value) - Number(a.value); });
+  } else if (holdingsSortKey === 'symbol') {
+    arr.sort(function(a, b) { return a.symbol.localeCompare(b.symbol); });
+  } else if (holdingsSortKey === 'change') {
+    arr.sort(function(a, b) { return Number(b.change_pct) - Number(a.change_pct); });
+  }
+  return arr;
+}
+
 function updateHoldings(holdings) {
   if (!Array.isArray(holdings)) return;
   const list = document.getElementById('holdings-list');
@@ -147,7 +347,9 @@ function updateHoldings(holdings) {
 
   list.innerHTML = '';
 
-  holdings.forEach(h => {
+  const sorted = sortedHoldings(holdings);
+
+  sorted.forEach(function(h) {
     const row = document.createElement('div');
     row.className = 'holding-row';
     row.dataset.symbol = h.symbol;
@@ -163,6 +365,9 @@ function updateHoldings(holdings) {
       <div>
         <div class="holding-price">${fmt.currency(h.price)}</div>
         <div class="holding-change ${chgClass}">${fmt.pct(h.change_pct)}</div>
+      </div>
+      <div class="holding-sparkline-wrap">
+        <canvas class="sparkline" width="120" height="30" aria-label="${h.symbol} price history"></canvas>
       </div>
       <div class="holding-detail">
         <div class="detail-grid">
@@ -186,11 +391,20 @@ function updateHoldings(holdings) {
       </div>
     `;
 
-    row.addEventListener('click', () => {
+    // Draw sparkline if we have history for this symbol
+    const prices = historyData[h.symbol];
+    const canvasEl = row.querySelector('canvas.sparkline');
+    if (canvasEl && prices && prices.length >= 2) {
+      const trend = prices[prices.length - 1] - prices[0];
+      drawSparkline(canvasEl, prices, trend >= 0 ? '#00ff66' : '#ff3333');
+      attachSparklineTooltip(canvasEl, prices, h.symbol);
+    }
+
+    row.addEventListener('click', function(e) {
+      // Don't toggle expand if clicking the sparkline canvas
+      if (e.target.tagName === 'CANVAS') return;
       const wasExpanded = row.classList.contains('expanded');
-      // Collapse all
-      list.querySelectorAll('.holding-row').forEach(r => r.classList.remove('expanded'));
-      // Expand this one if it wasn't
+      list.querySelectorAll('.holding-row').forEach(function(r) { r.classList.remove('expanded'); });
       if (!wasExpanded) row.classList.add('expanded');
     });
 
@@ -281,16 +495,30 @@ function updateIndices(indices) {
 
   grid.innerHTML = '';
 
-  indices.forEach(idx => {
+  indices.forEach(function(idx) {
     const card = document.createElement('div');
     card.className = 'index-card';
+    card.dataset.symbol = idx.symbol;
     const chg = dirClass(idx.change_pct);
     card.innerHTML = `
       <div class="index-symbol">${idx.symbol}</div>
       <div class="index-name">${idx.name || ''}</div>
       <div class="index-price">${fmt.currency(idx.price)}</div>
       <div class="index-change ${chg}">${fmt.pct(idx.change_pct)}</div>
+      <div class="index-sparkline-wrap">
+        <canvas class="sparkline" width="120" height="24" aria-label="${idx.symbol} history"></canvas>
+      </div>
     `;
+
+    // Draw sparkline if history available
+    const prices = historyData[idx.symbol];
+    const canvasEl = card.querySelector('canvas.sparkline');
+    if (canvasEl && prices && prices.length >= 2) {
+      const trend = prices[prices.length - 1] - prices[0];
+      drawSparkline(canvasEl, prices, trend >= 0 ? '#00ff66' : '#ff3333');
+      attachSparklineTooltip(canvasEl, prices, idx.symbol);
+    }
+
     grid.appendChild(card);
   });
 }
@@ -464,8 +692,63 @@ function initGlyphs() {
   }
 }
 
+// ── Keyboard Shortcuts ────────────────────────────────────────
+function initKeyboardShortcuts() {
+  document.addEventListener('keydown', function(e) {
+    // Ignore if typing in an input
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+    const key = e.key.toUpperCase();
+
+    if (key === 'R') {
+      // Force refresh
+      fetchData();
+      fetchHistory();
+      flashError('MANUAL REFRESH INITIATED');
+      setTimeout(function() {
+        const el = document.getElementById('error-banner');
+        if (el) { el.style.display = 'none'; }
+      }, 1500);
+    }
+
+    if (key === 'H') {
+      // Toggle holdings expand/collapse all
+      holdingsExpanded = !holdingsExpanded;
+      const list = document.getElementById('holdings-list');
+      if (!list) return;
+      list.querySelectorAll('.holding-row').forEach(function(row) {
+        if (holdingsExpanded) row.classList.add('expanded');
+        else row.classList.remove('expanded');
+      });
+    }
+  });
+}
+
+// ── Sort Controls ─────────────────────────────────────────────
+function initSortControls() {
+  const bar = document.getElementById('holdings-sort-bar');
+  if (!bar) return;
+  bar.addEventListener('click', function(e) {
+    const btn = e.target.closest('.sort-btn');
+    if (!btn) return;
+    const key = btn.dataset.sort;
+    holdingsSortKey = key;
+    bar.querySelectorAll('.sort-btn').forEach(function(b) { b.classList.remove('active'); });
+    btn.classList.add('active');
+    if (lastData && lastData.holdings) {
+      updateHoldings(lastData.holdings);
+    }
+  });
+}
+
 // ── Bootstrap ─────────────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', function() {
+  // Tooltip element
+  const tooltip = document.createElement('div');
+  tooltip.id = 'sparkline-tooltip';
+  tooltip.className = 'sparkline-tooltip';
+  document.body.appendChild(tooltip);
+
   // Clock — tick every second
   updateClock();
   setInterval(updateClock, 1000);
@@ -479,7 +762,17 @@ document.addEventListener('DOMContentLoaded', () => {
   // Floating glyphs
   initGlyphs();
 
+  // Keyboard shortcuts
+  initKeyboardShortcuts();
+
+  // Sort controls
+  initSortControls();
+
   // Initial data fetch then auto-refresh
   fetchData();
   setInterval(fetchData, REFRESH_INTERVAL_MS);
+
+  // History fetch (initial + slow interval)
+  fetchHistory();
+  setInterval(fetchHistory, HISTORY_INTERVAL_MS);
 });

@@ -90,12 +90,20 @@
         <div class="vault-value" id="vault-value">$---.--</div>
         <div id="vault-pl" class="vault-pl">-- (--)</div>
 
+        <canvas id="vault-chart" class="vault-chart" width="228" height="60" aria-label="Portfolio value history"></canvas>
+
         <div class="vault-divider"></div>
       </section>
 
       <!-- Holdings -->
       <section class="panel">
         <div class="panel-title">Asset Manifest</div>
+        <div class="holdings-sort-bar" id="holdings-sort-bar">
+          <span class="sort-label">SORT:</span>
+          <button class="sort-btn active" data-sort="value">VALUE</button>
+          <button class="sort-btn" data-sort="symbol">SYMBOL</button>
+          <button class="sort-btn" data-sort="change">CHANGE</button>
+        </div>
         <div class="holdings-list" id="holdings-list">
           <!-- Populated by vigil.js -->
           <div class="holding-row shimmer" style="height:52px;border:none;"></div>
@@ -205,7 +213,7 @@
       </div>
 
       <div class="status-item" style="margin-left:auto;">
-        <span class="status-key">For the Phaeron. For the Dynasty.</span>
+        <span class="status-key" title="R: Force Refresh | H: Expand/Collapse All Holdings">[R] REFRESH &nbsp; [H] HOLDINGS &nbsp; ◆ For the Phaeron. For the Dynasty.</span>
       </div>
     </div>
 

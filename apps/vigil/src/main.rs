@@ -128,6 +128,24 @@ async fn api_data(State(state): State<AppState>) -> axum::Json<serde_json::Value
     }))
 }
 
+async fn api_history(State(state): State<AppState>) -> axum::Json<serde_json::Value> {
+    let db = state.db.lock().unwrap();
+    let mut stmt = db.prepare(
+        "SELECT symbol, price, change_pct, timestamp FROM price_history ORDER BY timestamp DESC LIMIT 500"
+    ).unwrap();
+
+    let rows: Vec<serde_json::Value> = stmt.query_map([], |row| {
+        Ok(serde_json::json!({
+            "symbol": row.get::<_, String>(0)?,
+            "price": row.get::<_, f64>(1)?,
+            "change_pct": row.get::<_, f64>(2)?,
+            "timestamp": row.get::<_, String>(3)?,
+        }))
+    }).unwrap().filter_map(|r| r.ok()).collect();
+
+    axum::Json(serde_json::json!({ "history": rows }))
+}
+
 async fn scheduler_loop(state: AppState) {
     let alert_config = vigil_alerts::AlertConfig {
         threshold_pct: state.config.hysteresis_pct * 4.0,
@@ -157,6 +175,17 @@ async fn scheduler_loop(state: AppState) {
             vigil_alerts::send_ntfy(&state.config.ntfy_topic, alert).await;
             let wdb = state.worm_db.lock().unwrap();
             vigil_worm::append(&wdb, "alert_fired", serde_json::json!({"symbol": alert.symbol, "direction": alert.direction})).ok();
+        }
+
+        // Store price history for charts
+        {
+            let db = state.db.lock().unwrap();
+            for (symbol, price) in &snapshot.prices {
+                db.execute(
+                    "INSERT INTO price_history (symbol, price, change_pct, timestamp) VALUES (?1, ?2, ?3, datetime('now'))",
+                    rusqlite::params![symbol, price.price, price.change_pct],
+                ).ok();
+            }
         }
 
         *state.latest_snapshot.write().await = Some(snapshot);
@@ -262,6 +291,7 @@ async fn main() -> anyhow::Result<()> {
     let app = Router::new()
         .route("/", get(serve_index))
         .route("/api/data", get(api_data))
+        .route("/api/history", get(api_history))
         .route("/assets/*path", get(serve_asset))
         .with_state(state.clone());
 

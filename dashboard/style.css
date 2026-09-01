@@ -827,6 +827,103 @@ body {
   animation: pulse-dot 2s ease-in-out infinite;
 }
 
+/* ── Vault Chart ───────────────────────────────────────────── */
+.vault-chart {
+  display: block;
+  width: 100%;
+  height: 60px;
+  margin-top: 12px;
+  border: 1px solid var(--border-rune);
+  background: #050f08;
+  clip-path: var(--panel-clip-sm);
+  filter: drop-shadow(0 0 4px var(--gauss-glow));
+}
+
+/* ── Holdings Sort Bar ─────────────────────────────────────── */
+.holdings-sort-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.sort-label {
+  font-family: var(--font-label);
+  font-size: 9px;
+  color: var(--text-muted);
+  letter-spacing: 2px;
+}
+
+.sort-btn {
+  font-family: var(--font-title);
+  font-size: 8px;
+  letter-spacing: 1px;
+  color: var(--text-muted);
+  background: var(--bg-chamber);
+  border: 1px solid var(--border-rune);
+  padding: 2px 7px;
+  cursor: pointer;
+  clip-path: var(--panel-clip-sm);
+  transition: color 0.2s, border-color 0.2s;
+}
+
+.sort-btn:hover {
+  color: var(--gauss-green);
+  border-color: var(--gauss-dim);
+}
+
+.sort-btn.active {
+  color: var(--gauss-green);
+  border-color: var(--gauss-dim);
+  background: var(--gauss-trace);
+}
+
+/* ── Sparkline Canvases ────────────────────────────────────── */
+.sparkline {
+  display: block;
+  width: 120px;
+  height: 30px;
+  flex-shrink: 0;
+  filter: drop-shadow(0 0 3px rgba(0,255,102,0.3));
+}
+
+/* Holding row sparkline layout */
+.holding-row {
+  grid-template-columns: 1fr auto auto;
+}
+
+.holding-sparkline-wrap {
+  display: flex;
+  align-items: center;
+  padding-left: 6px;
+}
+
+/* Index card sparkline */
+.index-sparkline-wrap {
+  margin-top: 6px;
+}
+
+.index-sparkline-wrap .sparkline {
+  width: 100%;
+  height: 24px;
+}
+
+/* Sparkline tooltip */
+.sparkline-tooltip {
+  position: fixed;
+  z-index: 9000;
+  background: #0a1a0e;
+  border: 1px solid var(--gauss-dim);
+  color: var(--gauss-green);
+  font-family: var(--font-data);
+  font-size: 10px;
+  padding: 4px 8px;
+  pointer-events: none;
+  clip-path: var(--panel-clip-sm);
+  white-space: nowrap;
+  display: none;
+}
+
 /* ── Utility ───────────────────────────────────────────────── */
 .num-positive { color: var(--gauss-green) !important; }
 .num-negative { color: var(--danger) !important; }
