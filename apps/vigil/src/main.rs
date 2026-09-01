@@ -6,7 +6,7 @@ use axum::{
     extract::State,
     http::StatusCode,
     response::{Html, IntoResponse, Response},
-    routing::get,
+    routing::{get, post},
     Router,
 };
 use rust_embed::Embed;
@@ -144,6 +144,70 @@ async fn api_history(State(state): State<AppState>) -> axum::Json<serde_json::Va
     }).unwrap().filter_map(|r| r.ok()).collect();
 
     axum::Json(serde_json::json!({ "history": rows }))
+}
+
+/// POST /api/sync — Accept position updates from external sources (e.g. Robinhood MCP)
+async fn api_sync(
+    State(state): State<AppState>,
+    axum::Json(payload): axum::Json<serde_json::Value>,
+) -> axum::Json<serde_json::Value> {
+    let positions = match payload.get("positions").and_then(|p| p.as_array()) {
+        Some(arr) => arr,
+        None => return axum::Json(serde_json::json!({"error": "missing positions array", "synced": 0})),
+    };
+
+    let db = state.db.lock().unwrap();
+    let mut synced = 0;
+
+    for pos in positions {
+        let symbol = pos.get("symbol").and_then(|s| s.as_str()).unwrap_or("");
+        let asset_class = pos.get("asset_class").and_then(|s| s.as_str()).unwrap_or("equity");
+        let qty: f64 = pos.get("qty").and_then(|v| v.as_f64()).unwrap_or(0.0);
+        let avg_cost: f64 = pos.get("avg_cost").and_then(|v| v.as_f64()).unwrap_or(0.0);
+
+        if symbol.is_empty() || qty == 0.0 {
+            continue;
+        }
+
+        db.execute(
+            "INSERT OR REPLACE INTO holdings (symbol, asset_class, qty, avg_cost) VALUES (?1, ?2, ?3, ?4)",
+            rusqlite::params![symbol, asset_class, qty, avg_cost],
+        ).ok();
+        synced += 1;
+    }
+
+    // WORM log the sync event
+    {
+        let wdb = state.worm_db.lock().unwrap();
+        vigil_worm::append(
+            &wdb,
+            "position_sync",
+            serde_json::json!({"source": "api", "positions_synced": synced}),
+        ).ok();
+    }
+
+    tracing::info!("Synced {} positions via /api/sync", synced);
+    axum::Json(serde_json::json!({"synced": synced, "status": "ok"}))
+}
+
+/// DELETE /api/positions/:symbol — Remove a position
+async fn api_delete_position(
+    State(state): State<AppState>,
+    axum::extract::Path(symbol): axum::extract::Path<String>,
+) -> axum::Json<serde_json::Value> {
+    let db = state.db.lock().unwrap();
+    let deleted = db.execute("DELETE FROM holdings WHERE symbol = ?1", [&symbol]).unwrap_or(0);
+
+    if deleted > 0 {
+        let wdb = state.worm_db.lock().unwrap();
+        vigil_worm::append(
+            &wdb,
+            "position_removed",
+            serde_json::json!({"symbol": symbol}),
+        ).ok();
+    }
+
+    axum::Json(serde_json::json!({"deleted": deleted, "symbol": symbol}))
 }
 
 async fn scheduler_loop(state: AppState) {
@@ -292,6 +356,8 @@ async fn main() -> anyhow::Result<()> {
         .route("/", get(serve_index))
         .route("/api/data", get(api_data))
         .route("/api/history", get(api_history))
+        .route("/api/sync", post(api_sync))
+        .route("/api/positions/:symbol", axum::routing::delete(api_delete_position))
         .route("/assets/*path", get(serve_asset))
         .with_state(state.clone());
 
