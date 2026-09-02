@@ -22,4 +22,4 @@ axum = "0.7"
 tower-http = { version = "0.6", features = ["fs", "cors"] }
 rust-embed = "8"
 rusqlite = { version = "0.32", features = ["bundled"] }
-reqwest = { version = "0.12", features = ["json"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }

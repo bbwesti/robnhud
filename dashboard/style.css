@@ -241,6 +241,7 @@ body {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 12px;
+  align-items: start;
 }
 
 #main-mid {
@@ -518,6 +519,7 @@ body {
 
 .alert-row.armed     .alert-status { color: var(--gauss-green); }
 .alert-row.triggered .alert-status { color: var(--warn); }
+.alert-row.fired     .alert-status { color: var(--warn); }
 .alert-row.inactive  .alert-status { color: var(--text-muted); }
 
 /* ── Market Regime ─────────────────────────────────────────── */
@@ -922,6 +924,18 @@ body {
   clip-path: var(--panel-clip-sm);
   white-space: nowrap;
   display: none;
+}
+
+/* ── Empty State ───────────────────────────────────────────── */
+.empty-state {
+  font-family: var(--font-data);
+  font-size: 11px;
+  color: var(--text-muted);
+  text-align: center;
+  padding: 20px 10px;
+  letter-spacing: 1px;
+  border: 1px dashed var(--border-rune);
+  clip-path: var(--panel-clip-sm);
 }
 
 /* ── Utility ───────────────────────────────────────────────── */

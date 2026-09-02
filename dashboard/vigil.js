@@ -355,7 +355,7 @@ function updateHoldings(holdings) {
     row.dataset.symbol = h.symbol;
 
     const chgClass = dirClass(h.change_pct);
-    const plSign   = Number(h.pl) >= 0 ? '+' : '';
+    const plSign   = Number(h.pl) >= 0 ? '+' : '-';
 
     row.innerHTML = `
       <div>
@@ -444,8 +444,8 @@ function updateAlerts(alerts) {
   alerts.forEach(a => {
     const statusRaw = (a.status || 'inactive').toLowerCase();
     let rowClass = 'inactive';
-    if (statusRaw === 'armed')     rowClass = 'armed';
-    if (statusRaw === 'triggered') rowClass = 'triggered';
+    if (statusRaw === 'armed')                          rowClass = 'armed';
+    if (statusRaw === 'triggered' || statusRaw === 'fired') rowClass = 'triggered';
 
     const dirText = a.last_direction ? ` — ${a.last_direction.toUpperCase()}` : '';
     const row = document.createElement('div');
@@ -495,6 +495,11 @@ function updateIndices(indices) {
 
   grid.innerHTML = '';
 
+  if (indices.length === 0) {
+    grid.innerHTML = '<div class="empty-state">No indices configured</div>';
+    return;
+  }
+
   indices.forEach(function(idx) {
     const card = document.createElement('div');
     card.className = 'index-card';
@@ -529,6 +534,11 @@ function updateScenarios(scenarios) {
   if (!list) return;
 
   list.innerHTML = '';
+
+  if (scenarios.length === 0) {
+    list.innerHTML = '<div class="empty-state">Insufficient price history for projections</div>';
+    return;
+  }
 
   scenarios.forEach(sc => {
     const item = document.createElement('div');

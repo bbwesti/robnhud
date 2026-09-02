@@ -41,7 +41,10 @@ pub async fn fetch_crypto_prices(symbols: &[String]) -> HashMap<String, Price> {
         "https://api.coingecko.com/api/v3/simple/price?ids={}&vs_currencies=usd&include_24hr_change=true",
         ids.join(",")
     );
-    let client = reqwest::Client::new();
+    let client = reqwest::Client::builder()
+        .user_agent("CryptekVigil/2.0")
+        .build()
+        .unwrap_or_else(|_| reqwest::Client::new());
     let resp = match client.get(&url).timeout(std::time::Duration::from_secs(10)).send().await {
         Ok(r) => r,
         Err(e) => { tracing::warn!("CoinGecko fetch failed: {e}"); return HashMap::new(); }
@@ -68,7 +71,10 @@ pub async fn fetch_crypto_prices(symbols: &[String]) -> HashMap<String, Price> {
 pub async fn fetch_finnhub_quote(symbol: &str, api_key: &str) -> Option<Price> {
     if api_key.is_empty() { return None; }
     let url = format!("https://finnhub.io/api/v1/quote?symbol={symbol}&token={api_key}");
-    let client = reqwest::Client::new();
+    let client = reqwest::Client::builder()
+        .user_agent("CryptekVigil/2.0")
+        .build()
+        .unwrap_or_else(|_| reqwest::Client::new());
     let resp = client.get(&url).timeout(std::time::Duration::from_secs(10)).send().await.ok()?;
     let data: serde_json::Value = resp.json().await.ok()?;
     let current = data.get("c").and_then(|v| v.as_f64()).unwrap_or(0.0);
