@@ -24,3 +24,6 @@ rust-embed = "8"
 rusqlite = { version = "0.32", features = ["bundled"] }
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 quantabeta-bridge = { path = "../../crates/quantabeta-bridge" }
+blake3 = { workspace = true }
+ed25519-dalek = { workspace = true }
+rand = { workspace = true }

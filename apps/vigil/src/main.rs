@@ -28,6 +28,7 @@ struct AppState {
     latest_regime: Arc<RwLock<vigil_regime::Regime>>,
     latest_scenarios: Arc<RwLock<Vec<vigil_quant::ScenarioBands>>>,
     latest_quantabeta: Arc<RwLock<Option<quantabeta_bridge::analysis::QuantaBetaReport>>>,
+    signing_key: Arc<ed25519_dalek::SigningKey>,
 }
 
 async fn serve_index() -> Response {
@@ -64,9 +65,12 @@ async fn api_data(State(state): State<AppState>) -> axum::Json<serde_json::Value
         vigil_alerts::get_alert_states(&db)
     };
 
-    let (worm_valid, worm_count) = {
+    let (worm_valid, worm_count, worm_sigs_valid) = {
         let wdb = state.worm_db.lock().unwrap();
-        vigil_worm::verify(&wdb).unwrap_or((false, 0))
+        match vigil_worm::verify_signed(&wdb, &state.signing_key.verifying_key()) {
+            Ok(report) => (report.chain_valid, report.block_count, report.all_signatures_valid),
+            Err(_) => (false, 0, false),
+        }
     };
 
     let worm_last = {
@@ -119,8 +123,11 @@ async fn api_data(State(state): State<AppState>) -> axum::Json<serde_json::Value
         "alerts": alerts,
         "worm": {
             "block_count": worm_count, "valid": worm_valid,
+            "signatures_valid": worm_sigs_valid,
+            "signing_pubkey": vigil_worm::keys::pubkey_to_hex(&state.signing_key.verifying_key()),
             "last_hash": worm_last.first().map(|b| b.hash.clone()).unwrap_or_default(),
             "last_type": worm_last.first().map(|b| b.block_type.clone()).unwrap_or_default(),
+            "hash_algo": "blake3",
         },
         "status": {
             "vigil_core": "active", "next_digest": "18:00",
@@ -180,10 +187,11 @@ async fn api_sync(
     // WORM log the sync event
     {
         let wdb = state.worm_db.lock().unwrap();
-        vigil_worm::append(
+        vigil_worm::append_signed(
             &wdb,
             "position_sync",
             serde_json::json!({"source": "api", "positions_synced": synced}),
+            &state.signing_key,
         ).ok();
     }
 
@@ -201,10 +209,11 @@ async fn api_delete_position(
 
     if deleted > 0 {
         let wdb = state.worm_db.lock().unwrap();
-        vigil_worm::append(
+        vigil_worm::append_signed(
             &wdb,
             "position_removed",
             serde_json::json!({"symbol": symbol}),
+            &state.signing_key,
         ).ok();
     }
 
@@ -240,7 +249,7 @@ async fn scheduler_loop(state: AppState) {
 
         {
             let wdb = state.worm_db.lock().unwrap();
-            vigil_worm::append(&wdb, "price_fetch", serde_json::json!({"hash": &snapshot.data_hash})).ok();
+            vigil_worm::append_signed(&wdb, "price_fetch", serde_json::json!({"hash": &snapshot.data_hash}), &state.signing_key).ok();
         }
 
         let fired = {
@@ -251,7 +260,7 @@ async fn scheduler_loop(state: AppState) {
         for alert in &fired {
             vigil_alerts::send_ntfy(&state.config.ntfy_topic, alert).await;
             let wdb = state.worm_db.lock().unwrap();
-            vigil_worm::append(&wdb, "alert_fired", serde_json::json!({"symbol": alert.symbol, "direction": alert.direction})).ok();
+            vigil_worm::append_signed(&wdb, "alert_fired", serde_json::json!({"symbol": alert.symbol, "direction": alert.direction}), &state.signing_key).ok();
         }
 
         // Store price history for charts
@@ -295,7 +304,7 @@ async fn scheduler_loop(state: AppState) {
                 // Log to WORM chain
                 {
                     let wdb = state.worm_db.lock().unwrap();
-                    vigil_worm::append(
+                    vigil_worm::append_signed(
                         &wdb,
                         "quantabeta_analysis",
                         serde_json::json!({
@@ -304,6 +313,7 @@ async fn scheduler_loop(state: AppState) {
                             "cross_correlations": report.cross_correlations.len(),
                             "report_hash": report.report_hash,
                         }),
+                        &state.signing_key,
                     ).ok();
                 }
 
@@ -390,6 +400,13 @@ async fn main() -> anyhow::Result<()> {
     vigil_worm::init_worm_db(&worm_db)?;
     vigil_worm::seed_genesis(&worm_db)?;
 
+    vigil_worm::migrate_signed_columns(&worm_db)?;
+
+    let key_dir = project_dir.join(".vigil_keys");
+    std::fs::create_dir_all(&key_dir)?;
+    let signing_key = vigil_worm::keys::load_or_generate_signing_key(&key_dir)?;
+    tracing::info!("WORM signing key: {}", vigil_worm::keys::pubkey_to_hex(&signing_key.verifying_key()));
+
     quantabeta_bridge::cache::init_cache_table(&db)?;
 
     let positions_path = project_dir.join("positions.txt");
@@ -418,6 +435,7 @@ async fn main() -> anyhow::Result<()> {
         latest_regime: Arc::new(RwLock::new(vigil_regime::Regime::Unknown)),
         latest_scenarios: Arc::new(RwLock::new(Vec::new())),
         latest_quantabeta: Arc::new(RwLock::new(None)),
+        signing_key: Arc::new(signing_key),
     };
 
     let app = Router::new()
