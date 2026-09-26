@@ -12,6 +12,7 @@ members = [
     "vendor/quantabeta-core/crates/quantabeta-core",
     "vendor/quantabeta-core/crates/true-entropy",
     "vendor/quantabeta-core/crates/ramanujan-ops",
+    "crates/quantabeta-bridge",
 ]
 
 [workspace.dependencies]
