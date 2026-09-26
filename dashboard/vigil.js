@@ -476,6 +476,18 @@ function updateWorm(worm) {
   if (elHash)  elHash.textContent  = worm.last_hash  ? fmt.short(worm.last_hash) : '--';
   if (elType)  elType.textContent  = (worm.last_type || '--').toUpperCase();
 
+  const elSigs = document.getElementById('worm-sigs');
+  const elAlgo = document.getElementById('worm-algo');
+
+  if (elSigs) {
+    const sigsValid = worm.signatures_valid;
+    elSigs.textContent = sigsValid ? 'VERIFIED ◆' : (sigsValid === false ? 'INVALID' : '—');
+    elSigs.className = 'worm-val ' + (sigsValid ? 'valid' : (sigsValid === false ? 'invalid' : ''));
+  }
+  if (elAlgo) {
+    elAlgo.textContent = (worm.hash_algo || 'sha256').toUpperCase();
+  }
+
   if (elBlocks) {
     elBlocks.innerHTML = '';
     const n = Math.min(Number(worm.block_count) || 0, 20);
