@@ -194,6 +194,48 @@
     <!-- ════════════════════════════════════
          STATUS BAR (full width)
          ════════════════════════════════════ -->
+    <!-- QUANTABETA INVARIANT ANALYSIS -->
+    <div id="main-quantabeta">
+      <section class="panel quantabeta-panel" id="quantabeta-panel">
+          <div class="panel-header">
+              <h2>ARITHMETIC INVARIANT ANALYSIS</h2>
+              <span class="panel-badge" id="qb-status">STANDBY</span>
+          </div>
+          <div class="panel-body">
+              <div class="qb-summary" id="qb-summary">
+                  <div class="qb-metric">
+                      <span class="qb-label">RAMANUJAN GATE</span>
+                      <span class="qb-value" id="qb-ramanujan">—</span>
+                  </div>
+                  <div class="qb-metric">
+                      <span class="qb-label">ENTROPY (bits)</span>
+                      <span class="qb-value" id="qb-entropy">—</span>
+                  </div>
+                  <div class="qb-metric">
+                      <span class="qb-label">HECKE PAIRS</span>
+                      <span class="qb-value" id="qb-hecke-pairs">—</span>
+                  </div>
+              </div>
+              <table class="qb-table" id="qb-asset-table">
+                  <thead>
+                      <tr>
+                          <th>ASSET</th>
+                          <th>PARTITION VOL</th>
+                          <th>ENTROPY [L, U]</th>
+                          <th>COMPLEXITY</th>
+                          <th>RAMANUJAN</th>
+                      </tr>
+                  </thead>
+                  <tbody id="qb-asset-tbody"></tbody>
+              </table>
+              <div class="qb-cross-corr" id="qb-cross-section" style="display:none;">
+                  <h3>HECKE CROSS-CORRELATIONS</h3>
+                  <div id="qb-cross-list"></div>
+              </div>
+          </div>
+      </section>
+    </div>
+
     <div id="status-bar">
       <div class="status-dot"></div>
 

@@ -990,3 +990,106 @@ body {
   #header-sigil { width: 32px; height: 32px; }
   .panel { padding: 12px; }
 }
+
+/* ─── QUANTABETA PANEL ───────────────────────────────────────── */
+#main-quantabeta {
+  grid-column: 2 / span 3;
+}
+
+.quantabeta-panel {
+    border: 1px solid #8b7d3c;
+    background: linear-gradient(135deg, #0a0a0a 0%, #0d1a0d 100%);
+}
+
+.quantabeta-panel .panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 14px;
+}
+
+.quantabeta-panel .panel-header h2 {
+    color: #8b7d3c;
+    font-family: 'Orbitron', monospace;
+    font-size: 0.85rem;
+    letter-spacing: 2px;
+    margin: 0;
+}
+
+.panel-badge {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.7rem;
+    letter-spacing: 1px;
+    color: #555;
+    padding: 2px 8px;
+    border: 1px solid #1a1a1a;
+}
+
+.qb-summary {
+    display: flex;
+    gap: 2rem;
+    padding: 1rem 0;
+    border-bottom: 1px solid #1a1a1a;
+    margin-bottom: 1rem;
+}
+
+.qb-metric {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.qb-label {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 0.7rem;
+    color: #555;
+    letter-spacing: 1px;
+}
+
+.qb-value {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 1.1rem;
+    color: #00ff66;
+}
+
+.qb-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.8rem;
+}
+
+.qb-table th {
+    color: #8b7d3c;
+    text-align: left;
+    padding: 0.5rem;
+    border-bottom: 1px solid #1a1a1a;
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 0.7rem;
+    letter-spacing: 1px;
+}
+
+.qb-table td {
+    color: #ccc;
+    padding: 0.5rem;
+    border-bottom: 1px solid #0d0d0d;
+}
+
+.qb-table td.qb-pass { color: #00ff66; }
+.qb-table td.qb-fail { color: #ff3333; }
+
+.qb-cross-corr h3 {
+    color: #8b7d3c;
+    font-family: 'Orbitron', monospace;
+    font-size: 0.75rem;
+    margin-top: 1rem;
+}
+
+.qb-cross-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.3rem 0;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.8rem;
+    color: #aaa;
+}

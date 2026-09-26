@@ -593,6 +593,64 @@ function updateStatus(status) {
   }
 }
 
+// ── QuantaBeta Fetch ──────────────────────────────────────────
+async function fetchQuantaBeta() {
+    try {
+        const res = await fetch('/api/quantabeta');
+        const data = await res.json();
+        if (data.status === 'no_data') {
+            document.getElementById('qb-status').textContent = 'STANDBY';
+            return;
+        }
+
+        document.getElementById('qb-status').textContent = 'ACTIVE';
+        document.getElementById('qb-status').style.color = '#00ff66';
+
+        const allRam = data.assets.every(a => a.ramanujan_congruence_holds);
+        document.getElementById('qb-ramanujan').textContent = allRam ? 'VERIFIED' : 'VIOLATED';
+        document.getElementById('qb-ramanujan').style.color = allRam ? '#00ff66' : '#ff3333';
+
+        const avgEntropy = data.assets.reduce((s, a) => s + a.entropy_point, 0) / data.assets.length;
+        document.getElementById('qb-entropy').textContent = avgEntropy.toFixed(3);
+
+        document.getElementById('qb-hecke-pairs').textContent = data.cross_correlations.length;
+
+        const tbody = document.getElementById('qb-asset-tbody');
+        tbody.innerHTML = '';
+        for (const asset of data.assets) {
+            const lastVol = asset.partition_volatility.length > 0
+                ? asset.partition_volatility[asset.partition_volatility.length - 1].toFixed(4)
+                : '—';
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${asset.symbol}</td>
+                <td>${lastVol}</td>
+                <td>[${asset.entropy_interval[0].toFixed(3)}, ${asset.entropy_interval[1].toFixed(3)}]</td>
+                <td>${asset.complexity_bound.length > 10 ? asset.complexity_bound.substring(0, 8) + '...' : asset.complexity_bound}</td>
+                <td class="${asset.ramanujan_congruence_holds ? 'qb-pass' : 'qb-fail'}">${asset.ramanujan_congruence_holds ? 'PASS' : 'FAIL'}</td>
+            `;
+            tbody.appendChild(tr);
+        }
+
+        if (data.cross_correlations.length > 0) {
+            document.getElementById('qb-cross-section').style.display = 'block';
+            const crossList = document.getElementById('qb-cross-list');
+            crossList.innerHTML = '';
+            for (const cc of data.cross_correlations) {
+                const div = document.createElement('div');
+                div.className = 'qb-cross-item';
+                div.innerHTML = `
+                    <span>${cc.asset_a} ↔ ${cc.asset_b}</span>
+                    <span>T_${cc.level}: ${cc.hecke_correlation.toFixed(6)}</span>
+                `;
+                crossList.appendChild(div);
+            }
+        }
+    } catch (e) {
+        console.warn('QuantaBeta fetch failed:', e);
+    }
+}
+
 // ── Particle System ───────────────────────────────────────────
 function initParticles() {
   canvas = document.getElementById('particle-canvas');
@@ -713,6 +771,7 @@ function initKeyboardShortcuts() {
     if (key === 'R') {
       // Force refresh
       fetchData();
+      fetchQuantaBeta();
       fetchHistory();
       flashError('MANUAL REFRESH INITIATED');
       setTimeout(function() {
@@ -780,7 +839,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
   // Initial data fetch then auto-refresh
   fetchData();
+  fetchQuantaBeta();
   setInterval(fetchData, REFRESH_INTERVAL_MS);
+  setInterval(fetchQuantaBeta, REFRESH_INTERVAL_MS);
 
   // History fetch (initial + slow interval)
   fetchHistory();
