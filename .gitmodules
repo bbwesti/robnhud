@@ -1,0 +1,3 @@
+[submodule "vendor/quantabeta-core"]
+	path = vendor/quantabeta-core
+	url = https://github.com/SNAPKITTYWEST/quantabeta-core.git
