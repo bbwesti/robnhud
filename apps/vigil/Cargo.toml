@@ -11,6 +11,8 @@ vigil-regime = { path = "../../crates/regime" }
 vigil-quant = { path = "../../crates/quant" }
 vigil-alerts = { path = "../../crates/alerts" }
 vigil-digest = { path = "../../crates/digest" }
+vigil-market-types = { path = "../../crates/market-types" }
+vigil-governance = { path = "../../crates/governance" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 chrono = { workspace = true }

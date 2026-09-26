@@ -29,6 +29,7 @@ struct AppState {
     latest_scenarios: Arc<RwLock<Vec<vigil_quant::ScenarioBands>>>,
     latest_quantabeta: Arc<RwLock<Option<quantabeta_bridge::analysis::QuantaBetaReport>>>,
     signing_key: Arc<ed25519_dalek::SigningKey>,
+    governance_seen: Arc<RwLock<std::collections::HashSet<String>>>,
 }
 
 async fn serve_index() -> Response {
@@ -226,6 +227,49 @@ async fn api_quantabeta(State(state): State<AppState>) -> axum::Json<serde_json:
         Some(r) => axum::Json(serde_json::to_value(r).unwrap_or_default()),
         None => axum::Json(serde_json::json!({"status": "no_data", "message": "QuantaBeta analysis not yet computed"})),
     }
+}
+
+async fn api_governance_verify(
+    State(state): State<AppState>,
+    axum::Json(seal): axum::Json<vigil_governance::GovernanceSeal>,
+) -> axum::Json<serde_json::Value> {
+    let seen = state.governance_seen.read().await;
+    let result = vigil_governance::verify_seal(&seal, &seen);
+    drop(seen);
+
+    // Log to WORM chain
+    {
+        let wdb = state.worm_db.lock().unwrap();
+        vigil_worm::append_signed(
+            &wdb,
+            "governance_verify",
+            serde_json::json!({
+                "decision_id": seal.decision_id,
+                "seal_valid": result.seal_valid,
+                "quorum_met": result.quorum_met,
+            }),
+            &state.signing_key,
+        ).ok();
+    }
+
+    // If valid and approved, mark as seen for replay protection
+    if result.seal_valid && result.quorum_met && !result.is_replay {
+        let mut seen = state.governance_seen.write().await;
+        seen.insert(seal.decision_id.clone());
+    }
+
+    axum::Json(serde_json::to_value(&result).unwrap_or_default())
+}
+
+async fn api_verify_payload(
+    axum::Json(payload): axum::Json<vigil_market_types::verify::SignedPayload>,
+) -> axum::Json<serde_json::Value> {
+    let valid = payload.verify();
+    axum::Json(serde_json::json!({
+        "valid": valid,
+        "data_hash": payload.data_hash,
+        "pubkey": payload.pubkey,
+    }))
 }
 
 async fn scheduler_loop(state: AppState) {
@@ -436,6 +480,7 @@ async fn main() -> anyhow::Result<()> {
         latest_scenarios: Arc::new(RwLock::new(Vec::new())),
         latest_quantabeta: Arc::new(RwLock::new(None)),
         signing_key: Arc::new(signing_key),
+        governance_seen: Arc::new(RwLock::new(std::collections::HashSet::new())),
     };
 
     let app = Router::new()
@@ -445,6 +490,8 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/sync", post(api_sync))
         .route("/api/quantabeta", get(api_quantabeta))
         .route("/api/positions/:symbol", axum::routing::delete(api_delete_position))
+        .route("/api/governance/verify", post(api_governance_verify))
+        .route("/api/market-types/verify", post(api_verify_payload))
         .route("/assets/*path", get(serve_asset))
         .with_state(state.clone());
 
