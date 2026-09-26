@@ -27,6 +27,7 @@ struct AppState {
     latest_snapshot: Arc<RwLock<Option<vigil_core::PriceSnapshot>>>,
     latest_regime: Arc<RwLock<vigil_regime::Regime>>,
     latest_scenarios: Arc<RwLock<Vec<vigil_quant::ScenarioBands>>>,
+    latest_quantabeta: Arc<RwLock<Option<quantabeta_bridge::analysis::QuantaBetaReport>>>,
 }
 
 async fn serve_index() -> Response {
@@ -210,6 +211,14 @@ async fn api_delete_position(
     axum::Json(serde_json::json!({"deleted": deleted, "symbol": symbol}))
 }
 
+async fn api_quantabeta(State(state): State<AppState>) -> axum::Json<serde_json::Value> {
+    let report = state.latest_quantabeta.read().await;
+    match &*report {
+        Some(r) => axum::Json(serde_json::to_value(r).unwrap_or_default()),
+        None => axum::Json(serde_json::json!({"status": "no_data", "message": "QuantaBeta analysis not yet computed"})),
+    }
+}
+
 async fn scheduler_loop(state: AppState) {
     let alert_config = vigil_alerts::AlertConfig {
         threshold_pct: state.config.hysteresis_pct * 4.0,
@@ -217,7 +226,11 @@ async fn scheduler_loop(state: AppState) {
         cooldown_minutes: state.config.alert_cooldown_minutes as i64,
     };
 
+    let mut cycle_count: u64 = 0;
+
     loop {
+        cycle_count += 1;
+
         let holdings = {
             let db = state.db.lock().unwrap();
             vigil_core::db::get_holdings(&db).unwrap_or_default()
@@ -249,6 +262,58 @@ async fn scheduler_loop(state: AppState) {
                     "INSERT INTO price_history (symbol, price, change_pct, timestamp) VALUES (?1, ?2, ?3, datetime('now'))",
                     rusqlite::params![symbol, price.price, price.change_pct],
                 ).ok();
+            }
+        }
+
+        // QuantaBeta analysis — run every 10 cycles to avoid overhead
+        if cycle_count % 10 == 1 {
+            let portfolio: Vec<(String, Vec<f64>)> = {
+                let db = state.db.lock().unwrap();
+                holdings.iter().filter_map(|h| {
+                    let mut stmt = db.prepare(
+                        "SELECT price FROM price_history WHERE symbol = ?1 ORDER BY timestamp ASC LIMIT 500"
+                    ).ok()?;
+                    let prices: Vec<f64> = stmt.query_map(rusqlite::params![h.symbol], |row| {
+                        row.get::<_, f64>(0)
+                    }).ok()?.filter_map(|r| r.ok()).collect();
+                    if prices.len() >= 22 {
+                        Some((h.symbol.clone(), prices))
+                    } else {
+                        None
+                    }
+                }).collect()
+            };
+
+            if !portfolio.is_empty() {
+                let report = quantabeta_bridge::analysis::build_report(&portfolio, 20);
+                tracing::info!(
+                    "QuantaBeta analysis complete: {} assets, {} cross-correlations",
+                    report.assets.len(),
+                    report.cross_correlations.len()
+                );
+
+                // Log to WORM chain
+                {
+                    let wdb = state.worm_db.lock().unwrap();
+                    vigil_worm::append(
+                        &wdb,
+                        "quantabeta_analysis",
+                        serde_json::json!({
+                            "type": "quantabeta_analysis",
+                            "assets_analyzed": report.assets.len(),
+                            "cross_correlations": report.cross_correlations.len(),
+                            "report_hash": report.report_hash,
+                        }),
+                    ).ok();
+                }
+
+                // Cache report in DB
+                {
+                    let db = state.db.lock().unwrap();
+                    quantabeta_bridge::cache::store_report(&db, &report, &report.report_hash).ok();
+                }
+
+                *state.latest_quantabeta.write().await = Some(report);
             }
         }
 
@@ -325,6 +390,8 @@ async fn main() -> anyhow::Result<()> {
     vigil_worm::init_worm_db(&worm_db)?;
     vigil_worm::seed_genesis(&worm_db)?;
 
+    quantabeta_bridge::cache::init_cache_table(&db)?;
+
     let positions_path = project_dir.join("positions.txt");
     if positions_path.exists() {
         let holdings = vigil_core::db::get_holdings(&db)?;
@@ -350,6 +417,7 @@ async fn main() -> anyhow::Result<()> {
         latest_snapshot: Arc::new(RwLock::new(None)),
         latest_regime: Arc::new(RwLock::new(vigil_regime::Regime::Unknown)),
         latest_scenarios: Arc::new(RwLock::new(Vec::new())),
+        latest_quantabeta: Arc::new(RwLock::new(None)),
     };
 
     let app = Router::new()
@@ -357,6 +425,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/data", get(api_data))
         .route("/api/history", get(api_history))
         .route("/api/sync", post(api_sync))
+        .route("/api/quantabeta", get(api_quantabeta))
         .route("/api/positions/:symbol", axum::routing::delete(api_delete_position))
         .route("/assets/*path", get(serve_asset))
         .with_state(state.clone());
