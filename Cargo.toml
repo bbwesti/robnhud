@@ -14,6 +14,7 @@ members = [
     "vendor/quantabeta-core/crates/ramanujan-ops",
     "crates/quantabeta-bridge",
     "crates/market-types",
+    "crates/governance",
 ]
 
 [workspace.dependencies]
