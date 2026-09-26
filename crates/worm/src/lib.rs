@@ -3,6 +3,8 @@
 //! Append-only SHA-256 hash-chained audit trail backed by SQLite.
 //! Audit_Spec: 4b565498-9afc-4782-af4a-c6b11a5d0058
 
+pub mod keys;
+
 use chrono::{DateTime, Utc};
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
