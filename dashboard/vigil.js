@@ -26,6 +26,8 @@ let portfolioHistory  = [];   // [ totalValue, ... ]
 let holdingsSortKey   = 'value';
 let holdingsExpanded  = false;
 const HISTORY_INTERVAL_MS = 300_000; // 5 minutes
+let govVerifiedCount = 0;
+let govReplayCount = 0;
 
 // ── Formatters ────────────────────────────────────────────────
 const fmt = {
@@ -660,6 +662,41 @@ async function fetchQuantaBeta() {
         }
     } catch (e) {
         console.warn('QuantaBeta fetch failed:', e);
+    }
+}
+
+// ── Governance ───────────────────────────────────────────────
+async function verifyGovernanceSeal(seal) {
+    try {
+        const res = await fetch('/api/governance/verify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(seal),
+        });
+        const result = await res.json();
+
+        if (result.is_replay) {
+            govReplayCount++;
+        }
+        if (result.seal_valid && result.quorum_met) {
+            govVerifiedCount++;
+        }
+
+        document.getElementById('gov-verified-count').textContent = govVerifiedCount;
+        document.getElementById('gov-replay-count').textContent = govReplayCount;
+
+        const log = document.getElementById('gov-log');
+        if (log.querySelector('.empty-state')) log.innerHTML = '';
+
+        const entry = document.createElement('div');
+        entry.className = 'gov-log-entry ' + (result.seal_valid ? 'valid' : 'invalid');
+        entry.textContent = result.reason;
+        log.prepend(entry);
+
+        return result;
+    } catch (e) {
+        console.warn('Governance verify failed:', e);
+        return null;
     }
 }
 

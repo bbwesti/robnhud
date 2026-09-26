@@ -1093,3 +1093,43 @@ body {
     font-size: 0.8rem;
     color: #aaa;
 }
+
+/* ── Governance Panel ─────────────────────────────────────────── */
+.governance-panel {
+    border-color: #4a9eff;
+}
+.governance-panel .panel-header h2 {
+    color: #4a9eff;
+}
+.gov-summary {
+    display: flex;
+    gap: 24px;
+    margin-bottom: 12px;
+}
+.gov-metric {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.gov-label {
+    font-size: 9px;
+    color: #666;
+    letter-spacing: 1px;
+}
+.gov-value {
+    font-size: 16px;
+    color: #4a9eff;
+    font-family: 'Orbitron', monospace;
+}
+.gov-log {
+    max-height: 120px;
+    overflow-y: auto;
+    font-size: 11px;
+    color: #888;
+}
+.gov-log-entry {
+    padding: 4px 0;
+    border-bottom: 1px solid #1a1a22;
+}
+.gov-log-entry.valid { color: #00ff66; }
+.gov-log-entry.invalid { color: #ff3333; }
