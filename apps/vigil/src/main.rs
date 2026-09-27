@@ -63,7 +63,7 @@ async fn api_data(State(state): State<AppState>) -> axum::Json<serde_json::Value
 
     let alerts = {
         let db = state.db.lock().unwrap();
-        vigil_alerts::get_alert_states(&db)
+        vigil_alerts::get_alert_states(&db, state.config.alert_cooldown_minutes as i64)
     };
 
     let (worm_valid, worm_count, worm_sigs_valid) = {

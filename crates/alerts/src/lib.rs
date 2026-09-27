@@ -61,7 +61,9 @@ pub fn check_alerts(conn: &Connection, snapshot: &PriceSnapshot, holdings: &[Hol
                     message: format!("{} +{:.1}% — ${:.4} (from ${:.4})", holding.symbol, change_pct, price.price, baseline),
                     timestamp: Utc::now(),
                 };
-                conn.execute("UPDATE alert_state SET last_fired = ?1, last_direction = 'up' WHERE symbol = ?2", rusqlite::params![Utc::now().to_rfc3339(), holding.symbol]).ok();
+                // Reset baseline to current price and re-arm from new level
+                conn.execute("UPDATE alert_state SET baseline = ?1, last_fired = ?2, last_direction = NULL WHERE symbol = ?3", rusqlite::params![price.price, Utc::now().to_rfc3339(), holding.symbol]).ok();
+                tracing::info!("{} alert FIRED UP +{:.1}% — baseline reset ${:.4} → ${:.4}", holding.symbol, change_pct, baseline, price.price);
                 fired.push(alert);
             }
         }
@@ -74,7 +76,9 @@ pub fn check_alerts(conn: &Connection, snapshot: &PriceSnapshot, holdings: &[Hol
                     message: format!("{} {:.1}% — ${:.4} (from ${:.4})", holding.symbol, change_pct, price.price, baseline),
                     timestamp: Utc::now(),
                 };
-                conn.execute("UPDATE alert_state SET last_fired = ?1, last_direction = 'down' WHERE symbol = ?2", rusqlite::params![Utc::now().to_rfc3339(), holding.symbol]).ok();
+                // Reset baseline to current price and re-arm from new level
+                conn.execute("UPDATE alert_state SET baseline = ?1, last_fired = ?2, last_direction = NULL WHERE symbol = ?3", rusqlite::params![price.price, Utc::now().to_rfc3339(), holding.symbol]).ok();
+                tracing::info!("{} alert FIRED DOWN {:.1}% — baseline reset ${:.4} → ${:.4}", holding.symbol, change_pct, baseline, price.price);
                 fired.push(alert);
             }
         }
@@ -101,16 +105,29 @@ pub async fn send_ntfy(topic: &str, alert: &FiredAlert) {
         .send().await;
 }
 
-pub fn get_alert_states(conn: &Connection) -> Vec<serde_json::Value> {
+pub fn get_alert_states(conn: &Connection, cooldown_minutes: i64) -> Vec<serde_json::Value> {
     let mut stmt = conn.prepare("SELECT symbol, baseline, last_fired, last_direction FROM alert_state").unwrap();
     stmt.query_map([], |row| {
         let symbol: String = row.get(0)?;
         let baseline: f64 = row.get(1)?;
         let last_fired: Option<String> = row.get(2)?;
         let last_direction: Option<String> = row.get(3)?;
+        // Determine status: ARMED once cooldown expires, FIRED during cooldown
+        let status = match &last_fired {
+            None => "ARMED",
+            Some(lf) => {
+                match DateTime::parse_from_rfc3339(lf) {
+                    Ok(fired_at) => {
+                        let elapsed = Utc::now() - fired_at.with_timezone(&Utc);
+                        if elapsed >= Duration::minutes(cooldown_minutes) { "ARMED" } else { "FIRED" }
+                    }
+                    Err(_) => "ARMED",
+                }
+            }
+        };
         Ok(serde_json::json!({
             "symbol": symbol, "baseline": baseline, "last_fired": last_fired, "last_direction": last_direction,
-            "status": if last_fired.is_some() { "FIRED" } else { "ARMED" },
+            "status": status,
         }))
     }).unwrap().filter_map(|r| r.ok()).collect()
 }
@@ -163,6 +180,67 @@ mod tests {
         let snap2 = make_snapshot("XRP", 1.02);
         let alerts = check_alerts(&conn, &snap2, &holdings, &config);
         assert!(alerts.is_empty());
+    }
+
+    #[test]
+    fn test_baseline_resets_after_fire() {
+        let (conn, holdings) = setup();
+        // Use zero cooldown so we can test the reset immediately
+        let config = AlertConfig { threshold_pct: 3.0, hysteresis_pct: 0.75, cooldown_minutes: 0 };
+        // Set baseline at $1.00
+        let snap1 = make_snapshot("XRP", 1.00);
+        check_alerts(&conn, &snap1, &holdings, &config);
+        // Fire up at $1.04 (+4%)
+        let snap2 = make_snapshot("XRP", 1.04);
+        let alerts = check_alerts(&conn, &snap2, &holdings, &config);
+        assert_eq!(alerts.len(), 1);
+        // Baseline should now be $1.04
+        let baseline: f64 = conn.query_row("SELECT baseline FROM alert_state WHERE symbol = 'XRP'", [], |r| r.get(0)).unwrap();
+        assert!((baseline - 1.04).abs() < 0.001);
+        // last_direction should be cleared (re-armed)
+        let dir: Option<String> = conn.query_row("SELECT last_direction FROM alert_state WHERE symbol = 'XRP'", [], |r| r.get(0)).unwrap();
+        assert!(dir.is_none());
+    }
+
+    #[test]
+    fn test_rearms_and_fires_again_from_new_baseline() {
+        let (conn, holdings) = setup();
+        let config = AlertConfig { threshold_pct: 3.0, hysteresis_pct: 0.75, cooldown_minutes: 0 };
+        // Baseline $1.00
+        let snap1 = make_snapshot("XRP", 1.00);
+        check_alerts(&conn, &snap1, &holdings, &config);
+        // Fire up to $1.04 → baseline resets to $1.04
+        let snap2 = make_snapshot("XRP", 1.04);
+        check_alerts(&conn, &snap2, &holdings, &config);
+        // Price at $1.05 from $1.04 baseline = +0.96% → should NOT fire
+        let snap3 = make_snapshot("XRP", 1.05);
+        let alerts = check_alerts(&conn, &snap3, &holdings, &config);
+        assert!(alerts.is_empty());
+        // Price drops to $1.00 from $1.04 baseline = -3.85% → should fire DOWN
+        let snap4 = make_snapshot("XRP", 1.00);
+        let alerts = check_alerts(&conn, &snap4, &holdings, &config);
+        assert_eq!(alerts.len(), 1);
+        assert_eq!(alerts[0].direction, "down");
+        // Baseline should now be $1.00 again
+        let baseline: f64 = conn.query_row("SELECT baseline FROM alert_state WHERE symbol = 'XRP'", [], |r| r.get(0)).unwrap();
+        assert!((baseline - 1.00).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_status_shows_armed_after_cooldown() {
+        let (conn, holdings) = setup();
+        let config = AlertConfig { threshold_pct: 3.0, hysteresis_pct: 0.75, cooldown_minutes: 0 };
+        let snap1 = make_snapshot("XRP", 1.00);
+        check_alerts(&conn, &snap1, &holdings, &config);
+        // Before any fire: ARMED
+        let states = get_alert_states(&conn, 0);
+        assert_eq!(states[0]["status"], "ARMED");
+        // Fire
+        let snap2 = make_snapshot("XRP", 1.04);
+        check_alerts(&conn, &snap2, &holdings, &config);
+        // With 0 cooldown, should be ARMED again immediately
+        let states = get_alert_states(&conn, 0);
+        assert_eq!(states[0]["status"], "ARMED");
     }
 
     #[test]

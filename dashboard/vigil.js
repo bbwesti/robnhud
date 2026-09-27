@@ -330,18 +330,6 @@ function updatePortfolio(p) {
   }
 }
 
-function sortedHoldings(holdings) {
-  const arr = holdings.slice();
-  if (holdingsSortKey === 'value') {
-    arr.sort(function(a, b) { return Number(b.value) - Number(a.value); });
-  } else if (holdingsSortKey === 'symbol') {
-    arr.sort(function(a, b) { return a.symbol.localeCompare(b.symbol); });
-  } else if (holdingsSortKey === 'change') {
-    arr.sort(function(a, b) { return Number(b.change_pct) - Number(a.change_pct); });
-  }
-  return arr;
-}
-
 function updateHoldings(holdings) {
   if (!Array.isArray(holdings)) return;
   const list = document.getElementById('holdings-list');
@@ -349,7 +337,8 @@ function updateHoldings(holdings) {
 
   list.innerHTML = '';
 
-  const sorted = sortedHoldings(holdings);
+  // Sort by value descending for all views
+  const sorted = holdings.slice().sort(function(a, b) { return Number(b.value) - Number(a.value); });
 
   sorted.forEach(function(h) {
     const row = document.createElement('div');
@@ -358,40 +347,84 @@ function updateHoldings(holdings) {
 
     const chgClass = dirClass(h.change_pct);
     const plSign   = Number(h.pl) >= 0 ? '+' : '-';
+    const plClass  = signClass(h.pl);
 
-    row.innerHTML = `
-      <div>
-        <div class="holding-symbol">${h.symbol}</div>
-        <div class="holding-class">${h.asset_class || ''}</div>
-      </div>
-      <div>
-        <div class="holding-price">${fmt.currency(h.price)}</div>
-        <div class="holding-change ${chgClass}">${fmt.pct(h.change_pct)}</div>
-      </div>
-      <div class="holding-sparkline-wrap">
-        <canvas class="sparkline" width="120" height="30" aria-label="${h.symbol} price history"></canvas>
-      </div>
-      <div class="holding-detail">
-        <div class="detail-grid">
-          <div>
-            <div class="detail-label">QTY</div>
-            <div class="detail-val">${fmt.qty(h.qty)}</div>
-          </div>
-          <div>
-            <div class="detail-label">AVG COST</div>
-            <div class="detail-val">${fmt.currency(h.avg_cost)}</div>
-          </div>
-          <div>
-            <div class="detail-label">VALUE</div>
-            <div class="detail-val">${fmt.currency(h.value)}</div>
-          </div>
-          <div>
-            <div class="detail-label">P/L</div>
-            <div class="detail-val ${signClass(h.pl)}">${plSign}${fmt.currency(h.pl)}</div>
+    if (holdingsSortKey === 'value') {
+      // VALUE view: emphasize dollar value and P/L
+      row.innerHTML = `
+        <div>
+          <div class="holding-symbol">${h.symbol}</div>
+          <div class="holding-class">${h.asset_class || ''}</div>
+        </div>
+        <div class="holding-right-stack">
+          <div class="holding-value-big">${fmt.currency(h.value)}</div>
+          <div class="holding-pl ${plClass}">${plSign}${fmt.currency(h.pl)} (${fmt.pct(((Number(h.pl)) / (Number(h.value) - Number(h.pl))) * 100)})</div>
+        </div>
+        <div class="holding-sparkline-wrap">
+          <canvas class="sparkline" width="120" height="30" aria-label="${h.symbol} value history"></canvas>
+        </div>
+        <div class="holding-sub-row">
+          <span class="sub-label">QTY</span><span class="sub-val">${fmt.qty(h.qty)}</span>
+          <span class="sub-sep">|</span>
+          <span class="sub-label">PRICE</span><span class="sub-val">${fmt.currency(h.price)}</span>
+        </div>
+      `;
+    } else if (holdingsSortKey === 'price') {
+      // PRICE view: emphasize current price and 24h change
+      row.innerHTML = `
+        <div>
+          <div class="holding-symbol">${h.symbol}</div>
+          <div class="holding-class">${h.asset_class || ''}</div>
+        </div>
+        <div class="holding-right-stack">
+          <div class="holding-price-big">${fmt.currency(h.price)}</div>
+          <div class="holding-change-big ${chgClass}">${fmt.pct(h.change_pct)} 24h</div>
+        </div>
+        <div class="holding-sparkline-wrap">
+          <canvas class="sparkline" width="120" height="30" aria-label="${h.symbol} price history"></canvas>
+        </div>
+        <div class="holding-sub-row">
+          <span class="sub-label">HIGH</span><span class="sub-val ${chgClass}">${fmt.pct(h.change_pct)}</span>
+          <span class="sub-sep">|</span>
+          <span class="sub-label">VALUE</span><span class="sub-val">${fmt.currency(h.value)}</span>
+        </div>
+      `;
+    } else if (holdingsSortKey === 'details') {
+      // DETAILS view: full position breakdown, no click-to-expand needed
+      row.innerHTML = `
+        <div>
+          <div class="holding-symbol">${h.symbol}</div>
+          <div class="holding-class">${h.asset_class || ''}</div>
+        </div>
+        <div class="holding-right-stack">
+          <div class="holding-price">${fmt.currency(h.price)}</div>
+          <div class="holding-change ${chgClass}">${fmt.pct(h.change_pct)}</div>
+        </div>
+        <div class="holding-detail-always">
+          <div class="detail-grid">
+            <div>
+              <div class="detail-label">QTY</div>
+              <div class="detail-val">${fmt.qty(h.qty)}</div>
+            </div>
+            <div>
+              <div class="detail-label">AVG COST</div>
+              <div class="detail-val">${fmt.currency(h.avg_cost)}</div>
+            </div>
+            <div>
+              <div class="detail-label">VALUE</div>
+              <div class="detail-val">${fmt.currency(h.value)}</div>
+            </div>
+            <div>
+              <div class="detail-label">P/L</div>
+              <div class="detail-val ${plClass}">${plSign}${fmt.currency(h.pl)}</div>
+            </div>
           </div>
         </div>
-      </div>
-    `;
+        <div class="holding-sparkline-wrap">
+          <canvas class="sparkline" width="120" height="30" aria-label="${h.symbol} price history"></canvas>
+        </div>
+      `;
+    }
 
     // Draw sparkline if we have history for this symbol
     const prices = historyData[h.symbol];
@@ -401,14 +434,6 @@ function updateHoldings(holdings) {
       drawSparkline(canvasEl, prices, trend >= 0 ? '#00ff66' : '#ff3333');
       attachSparklineTooltip(canvasEl, prices, h.symbol);
     }
-
-    row.addEventListener('click', function(e) {
-      // Don't toggle expand if clicking the sparkline canvas
-      if (e.target.tagName === 'CANVAS') return;
-      const wasExpanded = row.classList.contains('expanded');
-      list.querySelectorAll('.holding-row').forEach(function(r) { r.classList.remove('expanded'); });
-      if (!wasExpanded) row.classList.add('expanded');
-    });
 
     list.appendChild(row);
   });

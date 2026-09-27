@@ -29,18 +29,18 @@ fi
 echo "[3/6] Setting up .env..."
 if [ ! -f .env ]; then
     cat > .env << 'ENVEOF'
-FINNHUB_KEY=da6gqv9r01qna3celpvgda6gqv9r01qna3celq00
-NTFY_TOPIC=bw-mkt-8f3k2q9x
-GMAIL_ADDRESS=branwesterhoff@gmail.com
-GMAIL_APP_PASSWORD=gmwprzylbnvaxpiu
-DIGEST_TO=branwesterhoff@gmail.com
-SEC_USER_AGENT="Brandon Westerhoff branwesterhoff@gmail.com"
+FINNHUB_KEY=your_finnhub_api_key_here
+NTFY_TOPIC=your_ntfy_topic_here
+GMAIL_ADDRESS=your_email@gmail.com
+GMAIL_APP_PASSWORD=your_gmail_app_password_here
+DIGEST_TO=your_email@gmail.com
+SEC_USER_AGENT="Your Name your_email@example.com"
 TIMEZONE=America/Los_Angeles
 POLL_SECONDS=60
 ALERT_COOLDOWN_MINUTES=45
 HYSTERESIS_PCT=0.75
 ENVEOF
-    echo "  .env created"
+    echo "  .env created — edit it with your actual credentials"
 else
     echo "  .env already exists — skipping"
 fi

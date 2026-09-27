@@ -1,15 +1,27 @@
 .env
 robnhud.db
+robnhud.db-shm
+robnhud.db-wal
+worm.db
 cloudflared.exe
 tunnel.log
 tunnel_url.txt
 tunnel_token.txt
+tunnel_named.log
+vigil.log
 __pycache__/
 *.pyc
 .playwright-mcp/
 SESSION_SUMMARY.md
 positions.txt
 .worktrees/
+.superpowers/
+.vigil_keys/
+docs/
+
+# Startup scripts (contain local paths)
+start-vigil.bat
+start-vigil.vbs
 
 # Rust
 /target/

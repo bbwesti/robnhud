@@ -391,7 +391,6 @@ body {
   background: var(--bg-chamber);
   border: 1px solid var(--border-rune);
   clip-path: var(--panel-clip-sm);
-  cursor: pointer;
   transition: background 0.2s, border-color 0.2s;
   position: relative;
 }
@@ -399,11 +398,6 @@ body {
 .holding-row:hover {
   background: var(--bg-hover);
   border-color: var(--gauss-dim);
-}
-
-.holding-row.expanded {
-  border-color: var(--gauss-green);
-  background: #0a1a0e;
 }
 
 .holding-symbol {
@@ -422,6 +416,10 @@ body {
   letter-spacing: 1px;
 }
 
+.holding-right-stack {
+  text-align: right;
+}
+
 .holding-price {
   font-family: var(--font-data);
   font-size: 12px;
@@ -438,15 +436,81 @@ body {
 .holding-change.up   { color: var(--gauss-green); }
 .holding-change.down { color: var(--danger); }
 
-.holding-detail {
-  display: none;
+/* VALUE view — big value + P/L */
+.holding-value-big {
+  font-family: var(--font-data);
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-primary);
+  text-align: right;
+  letter-spacing: 0.5px;
+}
+
+.holding-pl {
+  font-family: var(--font-data);
+  font-size: 11px;
+  text-align: right;
+}
+.holding-pl.positive { color: var(--gauss-green); }
+.holding-pl.negative { color: var(--danger); }
+
+/* PRICE view — big price + change */
+.holding-price-big {
+  font-family: var(--font-data);
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-primary);
+  text-align: right;
+  letter-spacing: 0.5px;
+}
+
+.holding-change-big {
+  font-family: var(--font-data);
+  font-size: 12px;
+  font-weight: 600;
+  text-align: right;
+}
+.holding-change-big.up   { color: var(--gauss-green); }
+.holding-change-big.down { color: var(--danger); }
+
+/* Sub-row: inline label/value pairs below sparkline */
+.holding-sub-row {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-top: 4px;
+  border-top: 1px solid var(--border-rune);
+  margin-top: 4px;
+}
+
+.sub-label {
+  font-family: var(--font-label);
+  font-size: 9px;
+  color: var(--text-muted);
+  letter-spacing: 1px;
+}
+
+.sub-val {
+  font-family: var(--font-data);
+  font-size: 10px;
+  color: var(--text-primary);
+}
+.sub-val.up   { color: var(--gauss-green); }
+.sub-val.down { color: var(--danger); }
+
+.sub-sep {
+  color: var(--border-rune);
+  font-size: 10px;
+}
+
+/* DETAILS view — always-visible detail grid */
+.holding-detail-always {
   grid-column: 1 / -1;
   padding-top: 8px;
   border-top: 1px solid var(--border-rune);
   margin-top: 6px;
 }
-
-.holding-row.expanded .holding-detail { display: block; }
 
 .detail-grid {
   display: grid;
