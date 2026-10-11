@@ -1,0 +1,38 @@
+# Dependencies
+node_modules/
+target/
+__pycache__/
+*.pyc
+
+# Build outputs
+dist/
+build/
+.next/
+out/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+docker-compose.override.yml
+
+# WORM data (append-only, not committed)
+worm-data/
+
+# Redis data
+redis-data/
+
+# DuckDB data
+duckdb-data/

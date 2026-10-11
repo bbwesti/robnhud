@@ -272,6 +272,145 @@ async fn api_verify_payload(
     }))
 }
 
+// ── MarketScope Integration ──────────────────────────────────────────────────
+
+/// POST /api/scenarios/generate — Generate scenario bands from user-provided values
+/// Implements the MarketScope quant-engine logic natively in Rust.
+async fn api_generate_scenarios(
+    State(state): State<AppState>,
+    axum::Json(payload): axum::Json<serde_json::Value>,
+) -> axum::Json<serde_json::Value> {
+    let symbol = payload.get("symbol").and_then(|s| s.as_str()).unwrap_or("UNKNOWN");
+    let values: Vec<f64> = payload
+        .get("values")
+        .and_then(|v| v.as_array())
+        .map(|arr| arr.iter().filter_map(|v| v.as_f64()).collect())
+        .unwrap_or_default();
+
+    if values.is_empty() {
+        return axum::Json(serde_json::json!({"error": "No values provided", "scenarios": []}));
+    }
+
+    let n = values.len() as f64;
+    let mean = values.iter().sum::<f64>() / n;
+    let variance = values.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / n;
+    let std = variance.sqrt();
+    let min = values.iter().cloned().fold(f64::INFINITY, f64::min);
+    let max = values.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+
+    // SHA-256 data hash for WORM logging
+    let data_hash = {
+        use sha2::Digest;
+        let canonical = serde_json::json!({"symbol": symbol, "values": values});
+        let mut hasher = sha2::Sha256::new();
+        hasher.update(serde_json::to_string(&canonical).unwrap_or_default().as_bytes());
+        hex::encode(hasher.finalize())
+    };
+
+    let scenarios = serde_json::json!([
+        {
+            "scenario": "bull_case",
+            "label": "Bull Case (75th percentile)",
+            "range": [mean + std, mean + 2.0 * std],
+            "probability": "low",
+            "note": "Scenario band \u{2014} NOT a prediction"
+        },
+        {
+            "scenario": "base_case",
+            "label": "Base Case (median)",
+            "range": [mean - std * 0.5, mean + std * 0.5],
+            "probability": "medium",
+            "note": "Scenario band \u{2014} NOT a prediction"
+        },
+        {
+            "scenario": "bear_case",
+            "label": "Bear Case (25th percentile)",
+            "range": [mean - 2.0 * std, mean - std],
+            "probability": "low",
+            "note": "Scenario band \u{2014} NOT a prediction"
+        },
+        {
+            "scenario": "tail_risk",
+            "label": "Tail Risk (5th percentile)",
+            "range": [mean - 3.0 * std, mean - 2.0 * std],
+            "probability": "very_low",
+            "note": "Scenario band \u{2014} NOT a prediction"
+        }
+    ]);
+
+    // Log to WORM chain
+    {
+        let wdb = state.worm_db.lock().unwrap();
+        vigil_worm::append_signed(
+            &wdb,
+            "marketscope_scenario",
+            serde_json::json!({
+                "symbol": symbol,
+                "data_hash": data_hash,
+                "scenario_count": 4,
+                "source": "marketscope_quant_engine",
+            }),
+            &state.signing_key,
+        )
+        .ok();
+    }
+
+    let timestamp = chrono::Utc::now().to_rfc3339();
+
+    axum::Json(serde_json::json!({
+        "symbol": symbol,
+        "timestamp": timestamp,
+        "data_hash": data_hash,
+        "statistics": {
+            "mean": (mean * 100.0).round() / 100.0,
+            "std": (std * 100.0).round() / 100.0,
+            "min": (min * 100.0).round() / 100.0,
+            "max": (max * 100.0).round() / 100.0,
+            "count": values.len(),
+        },
+        "scenarios": scenarios,
+        "disclaimer": "SCENARIO BANDS \u{2014} NOT PREDICTIONS \u{2014} Human Review Required",
+        "training_gate": "Human_Review_Required",
+        "audit_spec": "4b565498-9afc-4782-af4a-c6b11a5d0058",
+    }))
+}
+
+/// POST /api/compliance/check — Check signal compliance against sovereign constraints
+async fn api_compliance_check(
+    axum::Json(signal): axum::Json<serde_json::Value>,
+) -> axum::Json<serde_json::Value> {
+    let signal_type = signal.get("type").and_then(|s| s.as_str()).unwrap_or("");
+    let prohibited = ["buy_signal", "sell_signal", "price_target", "trade_recommendation"];
+
+    if prohibited.contains(&signal_type) {
+        return axum::Json(serde_json::json!({
+            "compliant": false,
+            "violation": "financial_advice_prohibited",
+            "message": "This signal type is PROHIBITED under sovereign axioms",
+            "audit_spec": "4b565498-9afc-4782-af4a-c6b11a5d0058",
+        }));
+    }
+
+    axum::Json(serde_json::json!({
+        "compliant": true,
+        "message": "Signal passed compliance check",
+        "training_gate": "Human_Review_Required",
+    }))
+}
+
+/// GET /api/marketscope/health — MarketScope integration health check
+async fn api_marketscope_health() -> axum::Json<serde_json::Value> {
+    axum::Json(serde_json::json!({
+        "status": "healthy",
+        "service": "marketscope-quant-engine",
+        "version": "0.1.0",
+        "output_type": "scenario_bands",
+        "training_gate": "Human_Review_Required",
+        "integrated": true,
+        "prolog_rules": ["compliance", "correlation", "regime"],
+    }))
+}
+
 async fn scheduler_loop(state: AppState) {
     let alert_config = vigil_alerts::AlertConfig {
         threshold_pct: state.config.hysteresis_pct * 4.0,
@@ -316,6 +455,103 @@ async fn scheduler_loop(state: AppState) {
                     rusqlite::params![symbol, price.price, price.change_pct],
                 ).ok();
             }
+        }
+
+        // Market regime detection
+        {
+            let vix = vigil_ingestor::fetch_vix(&state.config.finnhub_key).await;
+
+            // Use SPX (S&P 500) price history for SMA calculations
+            let spx_prices: Vec<f64> = {
+                let db = state.db.lock().unwrap();
+                db.prepare("SELECT price FROM price_history WHERE symbol = 'SPX' ORDER BY timestamp ASC")
+                    .and_then(|mut stmt| {
+                        let rows = stmt.query_map([], |row| row.get::<_, f64>(0))?;
+                        Ok(rows.filter_map(|r| r.ok()).collect())
+                    })
+                    .unwrap_or_default()
+            };
+
+            let sma_50 = vigil_regime::calculate_sma(&spx_prices, 50);
+            let sma_200 = vigil_regime::calculate_sma(&spx_prices, 200);
+
+            // Calculate breadth: fraction of holdings whose current price > their own SMA-50
+            let breadth = {
+                let db = state.db.lock().unwrap();
+                let mut above = 0usize;
+                let total = holdings.len();
+                for h in &holdings {
+                    let h_prices: Vec<f64> = db.prepare(
+                        "SELECT price FROM price_history WHERE symbol = ?1 ORDER BY timestamp ASC"
+                    )
+                        .and_then(|mut stmt| {
+                            let rows = stmt.query_map(rusqlite::params![h.symbol], |row| row.get::<_, f64>(0))?;
+                            Ok(rows.filter_map(|r| r.ok()).collect())
+                        })
+                        .unwrap_or_default();
+                    if let Some(h_sma) = vigil_regime::calculate_sma(&h_prices, 50) {
+                        let current = snapshot.prices.get(&h.symbol).map(|p| p.price).unwrap_or(0.0);
+                        if current > h_sma {
+                            above += 1;
+                        }
+                    }
+                }
+                vigil_regime::calculate_breadth(above, total)
+            };
+
+            let regime = match (sma_50, sma_200) {
+                (Some(s50), Some(s200)) => {
+                    let indicators = vigil_regime::MarketIndicators {
+                        sma_50: s50, sma_200: s200, vix, breadth,
+                    };
+                    vigil_regime::detect_regime(&indicators)
+                }
+                (Some(s50), None) => {
+                    // Not enough data for SMA-200 yet — use SMA-50 trend + VIX
+                    let latest_spx = spx_prices.last().copied().unwrap_or(s50);
+                    if latest_spx > s50 && vix < 20.0 && breadth > 0.6 {
+                        vigil_regime::Regime::Bull
+                    } else if latest_spx < s50 && vix > 30.0 {
+                        vigil_regime::Regime::Bear
+                    } else {
+                        vigil_regime::Regime::Transition
+                    }
+                }
+                _ => {
+                    // No index data yet — VIX-only heuristic
+                    if vix > 30.0 {
+                        vigil_regime::Regime::Bear
+                    } else if vix < 18.0 && breadth > 0.6 {
+                        vigil_regime::Regime::Bull
+                    } else {
+                        vigil_regime::Regime::Transition
+                    }
+                }
+            };
+            *state.latest_regime.write().await = regime;
+        }
+
+        // Scenario band generation
+        {
+            let scenarios = {
+                let db = state.db.lock().unwrap();
+                let mut s = Vec::new();
+                for h in &holdings {
+                    let prices: Vec<f64> = db.prepare(
+                        "SELECT price FROM price_history WHERE symbol = ?1 ORDER BY timestamp ASC"
+                    )
+                        .and_then(|mut stmt| {
+                            let rows = stmt.query_map(rusqlite::params![h.symbol], |row| row.get::<_, f64>(0))?;
+                            Ok(rows.filter_map(|r| r.ok()).collect())
+                        })
+                        .unwrap_or_default();
+                    if let Some(bands) = vigil_quant::generate_scenario_bands(&prices, &h.symbol) {
+                        s.push(bands);
+                    }
+                }
+                s
+            };
+            *state.latest_scenarios.write().await = scenarios;
         }
 
         // QuantaBeta analysis — run every 10 cycles to avoid overhead
@@ -442,9 +678,8 @@ async fn main() -> anyhow::Result<()> {
     let db = vigil_core::db::init_db(&config.db_path)?;
     let worm_db = rusqlite::Connection::open(&config.worm_db_path)?;
     vigil_worm::init_worm_db(&worm_db)?;
-    vigil_worm::seed_genesis(&worm_db)?;
-
     vigil_worm::migrate_signed_columns(&worm_db)?;
+    vigil_worm::seed_genesis(&worm_db)?;
 
     let key_dir = project_dir.join(".vigil_keys");
     std::fs::create_dir_all(&key_dir)?;
@@ -462,7 +697,7 @@ async fn main() -> anyhow::Result<()> {
         }
     }
 
-    let indices_path = project_dir.join("packages/connectors/indices.json");
+    let indices_path = project_dir.join("indices.json");
     let indices = vigil_ingestor::load_index_configs(&indices_path);
     tracing::info!("Tracking {} indices", indices.len());
 
@@ -492,6 +727,10 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/positions/:symbol", axum::routing::delete(api_delete_position))
         .route("/api/governance/verify", post(api_governance_verify))
         .route("/api/market-types/verify", post(api_verify_payload))
+        // MarketScope integration routes
+        .route("/api/scenarios/generate", post(api_generate_scenarios))
+        .route("/api/compliance/check", post(api_compliance_check))
+        .route("/api/marketscope/health", get(api_marketscope_health))
         .route("/assets/*path", get(serve_asset))
         .with_state(state.clone());
 

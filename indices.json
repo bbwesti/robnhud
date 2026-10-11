@@ -1,0 +1,31 @@
+{
+  "connectors": [
+    {
+      "id": "spx",
+      "symbol": "SPX",
+      "name": "S&P 500",
+      "source": "finnhub",
+      "ticker": "SPY",
+      "region": "US",
+      "timezone": "America/New_York"
+    },
+    {
+      "id": "ndx",
+      "symbol": "NDX",
+      "name": "NASDAQ-100",
+      "source": "finnhub",
+      "ticker": "QQQ",
+      "region": "US",
+      "timezone": "America/New_York"
+    },
+    {
+      "id": "dax",
+      "symbol": "DAX",
+      "name": "DAX 40",
+      "source": "finnhub",
+      "ticker": "EWG",
+      "region": "EU",
+      "timezone": "Europe/Berlin"
+    }
+  ]
+}

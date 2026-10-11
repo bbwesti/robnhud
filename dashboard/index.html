@@ -1,298 +1,267 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="Cryptek Vigil — Dynasty Wealth Monitoring Protocol" />
-  <title>CRYPTEK VIGIL — Dynastic Grandeur</title>
-
-  <!-- Google Fonts: Orbitron | Share Tech Mono | Rajdhani -->
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&family=Rajdhani:wght@300;400;600;700&display=swap" rel="stylesheet" />
-
-  <link rel="stylesheet" href="/assets/style.css" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CRYPTEK VIGIL — Tomb World Command</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700;900&family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&family=Rajdhani:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/assets/style.css">
 </head>
 <body>
 
-  <!-- ── Countdown Refresh Bar ─────────────────────────────── -->
-  <div id="countdown-bar" title="Next data refresh countdown">
-    <div id="countdown-fill"></div>
-  </div>
+  <!-- ── Countdown Refresh Bar ──────────────────────────── -->
+  <div id="countdown-bar"><div id="countdown-fill"></div></div>
 
-  <!-- ── Particle Canvas (behind everything) ───────────────── -->
+  <!-- ── Background Layers ──────────────────────────────── -->
   <canvas id="particle-canvas" aria-hidden="true"></canvas>
-
-  <!-- ── Floating Necron Glyphs ────────────────────────────── -->
   <div id="glyph-layer" aria-hidden="true"></div>
 
-  <!-- ── Error Banner ──────────────────────────────────────── -->
-  <div id="error-banner" style="
-    display:none; position:fixed; bottom:16px; right:16px;
-    background:#1a0008; border:1px solid #ff2244;
-    color:#ff2244; font-family:'Share Tech Mono',monospace;
-    font-size:11px; padding:10px 16px; z-index:9999;
-    clip-path:polygon(0 0,calc(100% - 8px) 0,100% 8px,100% 100%,8px 100%,0 calc(100% - 8px));
-    letter-spacing:1px;
-  " aria-live="assertive"></div>
+  <!-- ── Error Banner ───────────────────────────────────── -->
+  <div id="error-banner" aria-live="assertive"></div>
 
-  <!-- ── Header ────────────────────────────────────────────── -->
+  <!-- ── Header ─────────────────────────────────────────── -->
   <header id="header">
-
-    <!-- Necron SVG Sigil -->
-    <svg id="header-sigil" viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-      <!-- Outer hexagon frame -->
-      <polygon
-        points="22,2 40,11 40,33 22,42 4,33 4,11"
-        stroke="#00ff66" stroke-width="1" fill="none" opacity="0.6"
-      />
-      <!-- Inner diamond -->
-      <polygon
-        points="22,8 36,22 22,36 8,22"
-        stroke="#8b7d3c" stroke-width="1" fill="none" opacity="0.8"
-      />
-      <!-- Central ankh-cross motif -->
-      <line x1="22" y1="13" x2="22" y2="31" stroke="#00ff66" stroke-width="1.5"/>
-      <line x1="14" y1="22" x2="30" y2="22" stroke="#00ff66" stroke-width="1.5"/>
-      <circle cx="22" cy="16" r="3" stroke="#00ff66" stroke-width="1" fill="none"/>
-      <!-- Corner rune dots -->
-      <circle cx="22" cy="4"  r="1" fill="#8b7d3c"/>
-      <circle cx="22" cy="40" r="1" fill="#8b7d3c"/>
-      <circle cx="4"  cy="22" r="1" fill="#8b7d3c"/>
-      <circle cx="40" cy="22" r="1" fill="#8b7d3c"/>
-    </svg>
-
-    <div id="header-titles">
-      <div id="header-title">CRYPTEK VIGIL</div>
-      <div id="header-subtitle">Dynasty Wealth Monitoring Protocol — Tomb World Command</div>
+    <div id="header-left">
+      <!-- Necron Dynasty Crest -->
+      <svg id="header-sigil" viewBox="0 0 52 52" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <polygon points="26,1 50,14 50,38 26,51 2,38 2,14" stroke="#00ff41" stroke-width="0.8" fill="none" opacity="0.5"/>
+        <polygon points="26,7 44,17 44,37 26,47 8,37 8,17" stroke="#00ff41" stroke-width="0.6" fill="none" opacity="0.3"/>
+        <polygon points="26,10 38,26 26,42 14,26" stroke="#c9a84c" stroke-width="1" fill="none" opacity="0.7"/>
+        <line x1="26" y1="14" x2="26" y2="38" stroke="#00ff41" stroke-width="1.5"/>
+        <line x1="15" y1="26" x2="37" y2="26" stroke="#00ff41" stroke-width="1.5"/>
+        <circle cx="26" cy="18" r="4" stroke="#00ff41" stroke-width="1" fill="none"/>
+        <circle cx="26" cy="18" r="1.5" fill="#00ff41" opacity="0.6"/>
+        <circle cx="26" cy="3" r="1.2" fill="#c9a84c"/>
+        <circle cx="26" cy="49" r="1.2" fill="#c9a84c"/>
+        <circle cx="3" cy="26" r="1.2" fill="#c9a84c"/>
+        <circle cx="49" cy="26" r="1.2" fill="#c9a84c"/>
+      </svg>
+      <div id="header-titles">
+        <div id="header-title">CRYPTEK VIGIL</div>
+        <div id="header-subtitle">Tomb World Command &middot; Dynasty Wealth Protocol</div>
+      </div>
     </div>
+
+    <!-- Navigation Tabs -->
+    <nav id="nav-tabs">
+      <button class="nav-tab active" data-section="command">
+        <span class="nav-glyph">&#x2B21;</span><span class="nav-label">COMMAND</span>
+      </button>
+      <button class="nav-tab" data-section="marketscope">
+        <span class="nav-glyph">&#x25C8;</span><span class="nav-label">MARKETSCOPE</span>
+      </button>
+      <button class="nav-tab" data-section="archives">
+        <span class="nav-glyph">&#x23D4;</span><span class="nav-label">ARCHIVES</span>
+      </button>
+    </nav>
 
     <div id="header-clock">
       <div id="clock-time">--:--:--</div>
       <div id="clock-cycle">CYCLE: --------</div>
     </div>
-
   </header>
 
-  <!-- ── App Grid ───────────────────────────────────────────── -->
+  <!-- ════════════════════════════════════════════════════════
+       APP SECTIONS
+       ════════════════════════════════════════════════════════ -->
   <main id="app">
 
-    <!-- ════════════════════════════════════
-         COLUMN 1 — SIDEBAR
-         ════════════════════════════════════ -->
-    <aside id="sidebar">
+    <!-- ═══ COMMAND ═══════════════════════════════════════════ -->
+    <section id="section-command" class="app-section active">
+      <div class="command-layout">
 
-      <!-- Dynasty Vault -->
-      <section class="panel" id="vault-panel">
-        <div class="panel-title">Dynasty Vault</div>
+        <!-- Left Column -->
+        <aside id="sidebar">
+          <section class="panel vault-glow" id="vault-panel">
+            <div class="panel-title"><span class="title-rune">&#9670;</span>Dynasty Vault</div>
+            <div class="vault-label">TOTAL HOLDINGS VALUE</div>
+            <div class="vault-value" id="vault-value">$---.--</div>
+            <div id="vault-pl" class="vault-pl">-- (--)</div>
+            <canvas id="vault-chart" class="vault-chart" width="320" height="70" aria-label="Portfolio value sparkline"></canvas>
+          </section>
 
-        <div class="vault-label">Total Holdings Value</div>
-        <div class="vault-value" id="vault-value">$---.--</div>
-        <div id="vault-pl" class="vault-pl">-- (--)</div>
+          <section class="panel">
+            <div class="panel-title"><span class="title-rune">&#9670;</span>Asset Manifest</div>
+            <div class="holdings-sort-bar" id="holdings-sort-bar">
+              <span class="sort-label">VIEW:</span>
+              <button class="sort-btn active" data-sort="value">VALUE</button>
+              <button class="sort-btn" data-sort="price">PRICE</button>
+              <button class="sort-btn" data-sort="details">DETAILS</button>
+            </div>
+            <div class="holdings-list" id="holdings-list">
+              <div class="holding-row shimmer" style="height:52px;border:none;"></div>
+              <div class="holding-row shimmer" style="height:52px;border:none;margin-top:4px;"></div>
+            </div>
+          </section>
 
-        <canvas id="vault-chart" class="vault-chart" width="228" height="60" aria-label="Portfolio value history"></canvas>
+          <section class="panel">
+            <div class="panel-title"><span class="title-rune">&#9670;</span>Alert States</div>
+            <div class="alerts-list" id="alerts-list">
+              <div class="alert-row inactive">
+                <div class="alert-dot"></div>
+                <span class="alert-symbol">SCANNING&hellip;</span>
+              </div>
+            </div>
+          </section>
+        </aside>
 
-        <div class="vault-divider"></div>
-      </section>
+        <!-- Right Area -->
+        <div class="command-main">
+          <div class="command-top-row">
+            <section class="panel">
+              <div class="panel-title"><span class="title-rune">&#9670;</span>Market Regime</div>
+              <div class="regime-badge neutral" id="regime-badge">SCANNING</div>
+              <div class="regime-desc" id="regime-desc">Awaiting classification signal&hellip;</div>
+            </section>
+            <section class="panel">
+              <div class="panel-title"><span class="title-rune">&#9670;</span>WORM Chain Integrity</div>
+              <div class="worm-status">
+                <div class="worm-row"><span class="worm-key">Integrity</span><span class="worm-val" id="worm-valid">&mdash;</span></div>
+                <div class="worm-row"><span class="worm-key">Block Count</span><span class="worm-val" id="worm-count">&mdash;</span></div>
+                <div class="worm-row"><span class="worm-key">Last Event</span><span class="worm-val" id="worm-type">&mdash;</span></div>
+                <div class="worm-row"><span class="worm-key">Last Hash</span></div>
+                <div class="worm-hash" id="worm-hash">&mdash;</div>
+                <div class="worm-row"><span class="worm-key">Signatures</span><span class="worm-val" id="worm-sigs">&mdash;</span></div>
+                <div class="worm-row"><span class="worm-key">Algorithm</span><span class="worm-val" id="worm-algo">&mdash;</span></div>
+                <div class="chain-blocks" id="worm-blocks"></div>
+              </div>
+            </section>
+          </div>
 
-      <!-- Holdings -->
-      <section class="panel">
-        <div class="panel-title">Asset Manifest</div>
-        <div class="holdings-sort-bar" id="holdings-sort-bar">
-          <span class="sort-label">VIEW:</span>
-          <button class="sort-btn active" data-sort="value">VALUE</button>
-          <button class="sort-btn" data-sort="price">PRICE</button>
-          <button class="sort-btn" data-sort="details">DETAILS</button>
+          <section class="panel">
+            <div class="panel-title"><span class="title-rune">&#9670;</span>Global Indices</div>
+            <div class="indices-grid" id="indices-grid">
+              <div class="index-card shimmer" style="height:100px;"></div>
+              <div class="index-card shimmer" style="height:100px;"></div>
+              <div class="index-card shimmer" style="height:100px;"></div>
+            </div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-title"><span class="title-rune">&#9670;</span>Scenario Bands &mdash; Probability Projections</div>
+            <div class="scenarios-list" id="scenarios-list">
+              <div class="scenario-item shimmer" style="height:100px;"></div>
+            </div>
+          </section>
         </div>
-        <div class="holdings-list" id="holdings-list">
-          <!-- Populated by vigil.js -->
-          <div class="holding-row shimmer" style="height:52px;border:none;"></div>
-          <div class="holding-row shimmer" style="height:52px;border:none;margin-top:4px;"></div>
+      </div>
+    </section>
+
+    <!-- ═══ MARKETSCOPE ══════════════════════════════════════ -->
+    <section id="section-marketscope" class="app-section">
+      <div class="ms-layout">
+        <div class="ms-hero">
+          <svg class="ms-emblem" viewBox="0 0 80 80" aria-hidden="true">
+            <polygon points="40,2 76,21 76,59 40,78 4,59 4,21" stroke="#00e5ff" stroke-width="0.8" fill="none" opacity="0.3"/>
+            <polygon points="40,12 66,25 66,55 40,68 14,55 14,25" stroke="#00e5ff" stroke-width="0.6" fill="none" opacity="0.2"/>
+            <polygon points="40,18 54,40 40,62 26,40" stroke="#00e5ff" stroke-width="1.2" fill="none" opacity="0.5"/>
+            <circle cx="40" cy="40" r="12" stroke="#00e5ff" stroke-width="1" fill="none" opacity="0.4"/>
+            <circle cx="40" cy="40" r="5" fill="#00e5ff" opacity="0.15"/>
+            <circle cx="40" cy="40" r="2" fill="#00e5ff" opacity="0.6"/>
+            <line x1="40" y1="2" x2="40" y2="28" stroke="#00e5ff" stroke-width="0.4" opacity="0.3"/>
+            <line x1="40" y1="52" x2="40" y2="78" stroke="#00e5ff" stroke-width="0.4" opacity="0.3"/>
+            <line x1="4" y1="40" x2="28" y2="40" stroke="#00e5ff" stroke-width="0.4" opacity="0.3"/>
+            <line x1="52" y1="40" x2="76" y2="40" stroke="#00e5ff" stroke-width="0.4" opacity="0.3"/>
+          </svg>
+          <div class="ms-hero-text">
+            <h1 class="ms-title">MARKETSCOPE</h1>
+            <p class="ms-subtitle">Sovereign Scenario Intelligence Engine</p>
+          </div>
+          <span class="panel-badge ms-badge" id="ms-status">READY</span>
         </div>
-      </section>
 
-      <!-- Alert States -->
-      <section class="panel">
-        <div class="panel-title">Alert States</div>
-        <div class="alerts-list" id="alerts-list">
-          <!-- Populated by vigil.js -->
-          <div class="alert-row inactive">
-            <div class="alert-dot"></div>
-            <span class="alert-symbol">SCANNING…</span>
+        <div class="ms-body panel">
+          <div class="ms-controls">
+            <div class="ms-input-group">
+              <label class="ms-label" for="ms-symbol">SYMBOL</label>
+              <input type="text" id="ms-symbol" class="ms-input" value="SPX" placeholder="SPX">
+            </div>
+            <div class="ms-input-group ms-values-group">
+              <label class="ms-label" for="ms-values">DATA VALUES (comma-separated)</label>
+              <input type="text" id="ms-values" class="ms-input" placeholder="4500, 4520, 4480, 4550, 4470, 4510">
+            </div>
+            <button id="ms-generate" class="ms-button">
+              <span class="ms-btn-glyph">&#x2B21;</span> GENERATE SCENARIO BANDS
+            </button>
+          </div>
+
+          <div id="ms-disclaimer" class="ms-disclaimer" style="display:none;">
+            <span class="ms-warn-icon">&#9888;</span>
+            <span id="ms-disclaimer-text"></span>
+          </div>
+          <div id="ms-stats" class="ms-stats" style="display:none;"></div>
+          <div id="ms-scenarios" class="ms-scenarios"></div>
+          <div id="ms-audit" class="ms-audit" style="display:none;"></div>
+
+          <div class="ms-compliance">
+            <div class="ms-compliance-header">
+              <span class="ms-label">SOVEREIGN COMPLIANCE</span>
+              <span class="ms-compliance-status" id="ms-compliance-status">&#9679; ARMED</span>
+            </div>
+            <div class="ms-compliance-rules">
+              <span class="ms-rule">PROHIBITED: financial_advice</span>
+              <span class="ms-rule">GATE: Human_Review_Required</span>
+              <span class="ms-rule">PROLOG: compliance.pl / correlation.pl / regime.pl</span>
+            </div>
           </div>
         </div>
-      </section>
+      </div>
+    </section>
 
-    </aside>
-
-    <!-- ════════════════════════════════════
-         TOP ROW (cols 2–4)
-         ════════════════════════════════════ -->
-    <div id="main-top">
-
-      <!-- Market Regime -->
-      <section class="panel">
-        <div class="panel-title">Market Regime</div>
-        <div class="regime-badge neutral" id="regime-badge">SCANNING</div>
-        <div class="regime-desc" id="regime-desc">Awaiting classification signal…</div>
-      </section>
-
-      <!-- WORM Chain Status -->
-      <section class="panel">
-        <div class="panel-title">WORM Chain Integrity</div>
-        <div class="worm-status">
-          <div class="worm-row">
-            <span class="worm-key">Integrity</span>
-            <span class="worm-val" id="worm-valid">—</span>
-          </div>
-          <div class="worm-row">
-            <span class="worm-key">Block Count</span>
-            <span class="worm-val" id="worm-count">—</span>
-          </div>
-          <div class="worm-row">
-            <span class="worm-key">Last Event</span>
-            <span class="worm-val" id="worm-type">—</span>
-          </div>
-          <div class="worm-row">
-            <span class="worm-key">Last Hash</span>
-          </div>
-          <div class="worm-hash" id="worm-hash">—</div>
-          <div class="worm-row">
-            <span class="worm-key">Signatures</span>
-            <span class="worm-val" id="worm-sigs">—</span>
-          </div>
-          <div class="worm-row">
-            <span class="worm-key">Algorithm</span>
-            <span class="worm-val" id="worm-algo">—</span>
-          </div>
-          <div class="chain-blocks" id="worm-blocks"></div>
-        </div>
-      </section>
-
-    </div>
-
-    <!-- ════════════════════════════════════
-         MIDDLE ROW — Global Indices (cols 2–4)
-         ════════════════════════════════════ -->
-    <div id="main-mid">
-      <section class="panel">
-        <div class="panel-title">Global Indices</div>
-        <div class="indices-grid" id="indices-grid">
-          <!-- Populated by vigil.js -->
-          <div class="index-card shimmer" style="height:80px;"></div>
-          <div class="index-card shimmer" style="height:80px;"></div>
-          <div class="index-card shimmer" style="height:80px;"></div>
-        </div>
-      </section>
-    </div>
-
-    <!-- ════════════════════════════════════
-         BOTTOM ROW — Scenario Bands (cols 2–4)
-         ════════════════════════════════════ -->
-    <div id="main-bot">
-      <section class="panel">
-        <div class="panel-title">Scenario Bands — Probability Projections</div>
-        <div class="scenarios-list" id="scenarios-list">
-          <!-- Populated by vigil.js -->
-          <div class="scenario-item shimmer" style="height:100px;"></div>
-        </div>
-      </section>
-    </div>
-
-    <!-- ════════════════════════════════════
-         STATUS BAR (full width)
-         ════════════════════════════════════ -->
-    <!-- QUANTABETA INVARIANT ANALYSIS -->
-    <div id="main-quantabeta">
-      <section class="panel quantabeta-panel" id="quantabeta-panel">
+    <!-- ═══ ARCHIVES ═════════════════════════════════════════ -->
+    <section id="section-archives" class="app-section">
+      <div class="archives-layout">
+        <section class="panel quantabeta-panel" id="quantabeta-panel">
           <div class="panel-header">
-              <h2>ARITHMETIC INVARIANT ANALYSIS</h2>
-              <span class="panel-badge" id="qb-status">STANDBY</span>
+            <h2>ARITHMETIC INVARIANT ANALYSIS</h2>
+            <span class="panel-badge" id="qb-status">STANDBY</span>
           </div>
           <div class="panel-body">
-              <div class="qb-summary" id="qb-summary">
-                  <div class="qb-metric">
-                      <span class="qb-label">RAMANUJAN GATE</span>
-                      <span class="qb-value" id="qb-ramanujan">—</span>
-                  </div>
-                  <div class="qb-metric">
-                      <span class="qb-label">ENTROPY (bits)</span>
-                      <span class="qb-value" id="qb-entropy">—</span>
-                  </div>
-                  <div class="qb-metric">
-                      <span class="qb-label">HECKE PAIRS</span>
-                      <span class="qb-value" id="qb-hecke-pairs">—</span>
-                  </div>
-              </div>
-              <table class="qb-table" id="qb-asset-table">
-                  <thead>
-                      <tr>
-                          <th>ASSET</th>
-                          <th>PARTITION VOL</th>
-                          <th>ENTROPY [L, U]</th>
-                          <th>COMPLEXITY</th>
-                          <th>RAMANUJAN</th>
-                      </tr>
-                  </thead>
-                  <tbody id="qb-asset-tbody"></tbody>
-              </table>
-              <div class="qb-cross-corr" id="qb-cross-section" style="display:none;">
-                  <h3>HECKE CROSS-CORRELATIONS</h3>
-                  <div id="qb-cross-list"></div>
-              </div>
+            <div class="qb-summary" id="qb-summary">
+              <div class="qb-metric"><span class="qb-label">RAMANUJAN GATE</span><span class="qb-value" id="qb-ramanujan">&mdash;</span></div>
+              <div class="qb-metric"><span class="qb-label">ENTROPY (bits)</span><span class="qb-value" id="qb-entropy">&mdash;</span></div>
+              <div class="qb-metric"><span class="qb-label">HECKE PAIRS</span><span class="qb-value" id="qb-hecke-pairs">&mdash;</span></div>
+            </div>
+            <table class="qb-table" id="qb-asset-table">
+              <thead><tr><th>ASSET</th><th>PARTITION VOL</th><th>ENTROPY [L, U]</th><th>COMPLEXITY</th><th>RAMANUJAN</th></tr></thead>
+              <tbody id="qb-asset-tbody"></tbody>
+            </table>
+            <div class="qb-cross-corr" id="qb-cross-section" style="display:none;">
+              <h3>HECKE CROSS-CORRELATIONS</h3>
+              <div id="qb-cross-list"></div>
+            </div>
           </div>
-      </section>
-    </div>
+        </section>
 
-    <!-- GOVERNANCE SEAL VERIFICATION -->
-    <div id="main-governance">
-      <section class="panel governance-panel" id="governance-panel">
+        <section class="panel governance-panel" id="governance-panel">
           <div class="panel-header">
-              <h2>GOVERNANCE SEAL VERIFICATION</h2>
-              <span class="panel-badge" id="gov-status">ARMED</span>
+            <h2>GOVERNANCE SEAL VERIFICATION</h2>
+            <span class="panel-badge" id="gov-status">ARMED</span>
           </div>
           <div class="panel-body">
-              <div class="gov-summary">
-                  <div class="gov-metric">
-                      <span class="gov-label">SEALS VERIFIED</span>
-                      <span class="gov-value" id="gov-verified-count">0</span>
-                  </div>
-                  <div class="gov-metric">
-                      <span class="gov-label">REPLAYS BLOCKED</span>
-                      <span class="gov-value" id="gov-replay-count">0</span>
-                  </div>
-                  <div class="gov-metric">
-                      <span class="gov-label">HASH ALGO</span>
-                      <span class="gov-value">BLAKE3</span>
-                  </div>
-              </div>
-              <div class="gov-log" id="gov-log">
-                  <div class="empty-state">No governance decisions verified this session</div>
-              </div>
+            <div class="gov-summary">
+              <div class="gov-metric"><span class="gov-label">SEALS VERIFIED</span><span class="gov-value" id="gov-verified-count">0</span></div>
+              <div class="gov-metric"><span class="gov-label">REPLAYS BLOCKED</span><span class="gov-value" id="gov-replay-count">0</span></div>
+              <div class="gov-metric"><span class="gov-label">HASH ALGO</span><span class="gov-value">BLAKE3</span></div>
+            </div>
+            <div class="gov-log" id="gov-log">
+              <div class="empty-state">No governance decisions verified this session</div>
+            </div>
           </div>
-      </section>
-    </div>
+        </section>
+      </div>
+    </section>
 
+    <!-- Status Bar -->
     <div id="status-bar">
       <div class="status-dot"></div>
-
-      <div class="status-item">
-        <span class="status-key">Vigil Core</span>
-        <span class="status-val" id="status-vigil">—</span>
-      </div>
-
-      <div class="status-item">
-        <span class="status-key">Next Digest</span>
-        <span class="status-val" id="status-digest">—</span>
-      </div>
-
-      <div class="status-item">
-        <span class="status-key">Last Refresh</span>
-        <span class="status-val" id="status-refresh">—</span>
-      </div>
-
+      <div class="status-item"><span class="status-key">Vigil Core</span><span class="status-val" id="status-vigil">&mdash;</span></div>
+      <div class="status-item"><span class="status-key">Next Digest</span><span class="status-val" id="status-digest">&mdash;</span></div>
+      <div class="status-item"><span class="status-key">Last Refresh</span><span class="status-val" id="status-refresh">&mdash;</span></div>
       <div class="status-item" style="margin-left:auto;">
-        <span class="status-key" title="R: Force Refresh | H: Expand/Collapse All Holdings">[R] REFRESH &nbsp; [H] HOLDINGS &nbsp; ◆ For the Phaeron. For the Dynasty.</span>
+        <span class="status-key">[R] REFRESH &nbsp; [H] HOLDINGS &nbsp; [1-3] SECTIONS &nbsp; &#9670; For the Phaeron.</span>
       </div>
     </div>
 

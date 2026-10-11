@@ -864,6 +864,11 @@ function initKeyboardShortcuts() {
         else row.classList.remove('expanded');
       });
     }
+
+    // 1/2/3 keys switch sections
+    if (key === '1') switchSection('command');
+    if (key === '2') switchSection('marketscope');
+    if (key === '3') switchSection('archives');
   });
 }
 
@@ -911,6 +916,9 @@ document.addEventListener('DOMContentLoaded', function() {
   // Sort controls
   initSortControls();
 
+  // Tab navigation
+  initNavigation();
+
   // Initial data fetch then auto-refresh
   fetchData();
   fetchQuantaBeta();
@@ -920,4 +928,165 @@ document.addEventListener('DOMContentLoaded', function() {
   // History fetch (initial + slow interval)
   fetchHistory();
   setInterval(fetchHistory, HISTORY_INTERVAL_MS);
+
+  // MarketScope scenario generator
+  initMarketScope();
 });
+
+// ── Section Navigation ───────────────────────────────────────────────────────
+
+function initNavigation() {
+  const tabs = document.querySelectorAll('.nav-tab');
+  tabs.forEach(function(tab) {
+    tab.addEventListener('click', function() {
+      switchSection(tab.dataset.section);
+    });
+  });
+}
+
+function switchSection(name) {
+  var tabs = document.querySelectorAll('.nav-tab');
+  var sections = document.querySelectorAll('.app-section');
+  tabs.forEach(function(t) { t.classList.remove('active'); });
+  sections.forEach(function(s) { s.classList.remove('active'); });
+  var targetTab = document.querySelector('.nav-tab[data-section="' + name + '"]');
+  var targetSection = document.getElementById('section-' + name);
+  if (targetTab) targetTab.classList.add('active');
+  if (targetSection) targetSection.classList.add('active');
+}
+
+// ── MarketScope Integration ──────────────────────────────────────────────────
+
+function initMarketScope() {
+  const btn = document.getElementById('ms-generate');
+  if (!btn) return;
+
+  btn.addEventListener('click', generateMarketScopeScenarios);
+
+  // Enter key on values input triggers generation
+  const valInput = document.getElementById('ms-values');
+  if (valInput) {
+    valInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') generateMarketScopeScenarios();
+    });
+  }
+
+  // Check MarketScope health on load
+  fetch('/api/marketscope/health')
+    .then(r => r.json())
+    .then(data => {
+      const badge = document.getElementById('ms-status');
+      if (badge && data.status === 'healthy') {
+        badge.textContent = 'ONLINE';
+        badge.style.color = '#00ff66';
+        badge.style.borderColor = '#00ff66';
+        badge.style.background = '#00ff6622';
+      }
+    })
+    .catch(() => {});
+}
+
+async function generateMarketScopeScenarios() {
+  const btn = document.getElementById('ms-generate');
+  const symbolEl = document.getElementById('ms-symbol');
+  const valuesEl = document.getElementById('ms-values');
+
+  if (!btn || !symbolEl || !valuesEl) return;
+
+  const symbol = symbolEl.value.trim() || 'SPX';
+  const values = valuesEl.value.split(',')
+    .map(v => parseFloat(v.trim()))
+    .filter(v => !isNaN(v));
+
+  if (values.length === 0) {
+    showMsError('Enter comma-separated numeric values');
+    return;
+  }
+
+  btn.disabled = true;
+  btn.classList.add('loading');
+  btn.textContent = 'GENERATING...';
+  document.getElementById('ms-status').textContent = 'COMPUTING';
+
+  try {
+    const resp = await fetch('/api/scenarios/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ symbol, values }),
+    });
+    const data = await resp.json();
+
+    if (data.error) {
+      showMsError(data.error);
+      return;
+    }
+
+    renderMarketScopeResult(data);
+  } catch (err) {
+    showMsError('Failed to reach scenario engine: ' + err.message);
+  } finally {
+    btn.disabled = false;
+    btn.classList.remove('loading');
+    btn.textContent = 'GENERATE SCENARIO BANDS';
+    document.getElementById('ms-status').textContent = 'READY';
+  }
+}
+
+function renderMarketScopeResult(data) {
+  // Disclaimer
+  const discEl = document.getElementById('ms-disclaimer');
+  const discText = document.getElementById('ms-disclaimer-text');
+  if (discEl && discText) {
+    discText.textContent = data.disclaimer;
+    discEl.style.display = 'flex';
+  }
+
+  // Statistics
+  const statsEl = document.getElementById('ms-stats');
+  if (statsEl && data.statistics) {
+    const s = data.statistics;
+    statsEl.innerHTML = [
+      { label: 'MEAN', value: s.mean.toFixed(2) },
+      { label: 'STD DEV', value: s.std.toFixed(2) },
+      { label: 'MIN', value: s.min.toFixed(2) },
+      { label: 'MAX', value: s.max.toFixed(2) },
+      { label: 'COUNT', value: s.count },
+    ].map(m => `<div class="ms-stat"><div class="ms-stat-label">${m.label}</div><div class="ms-stat-value">${m.value}</div></div>`).join('');
+    statsEl.style.display = 'grid';
+  }
+
+  // Scenarios
+  const scenEl = document.getElementById('ms-scenarios');
+  if (scenEl && data.scenarios) {
+    const typeClass = { bull_case: 'bull', base_case: 'base', bear_case: 'bear', tail_risk: 'tail' };
+    scenEl.innerHTML = data.scenarios.map(sc => `
+      <div class="ms-scenario ${typeClass[sc.scenario] || ''}">
+        <span class="ms-scenario-label">${sc.label}</span>
+        <span class="ms-scenario-range">[${sc.range[0].toFixed(2)} \u2014 ${sc.range[1].toFixed(2)}]</span>
+        <span class="ms-scenario-prob">${sc.probability}</span>
+        <span class="ms-scenario-note">${sc.note}</span>
+      </div>
+    `).join('');
+  }
+
+  // Audit info
+  const auditEl = document.getElementById('ms-audit');
+  if (auditEl) {
+    auditEl.innerHTML = `
+      <span>Data Hash: ${data.data_hash}</span>
+      <span>Audit Spec: ${data.audit_spec}</span>
+      <span>Timestamp: ${data.timestamp}</span>
+      <span>Training Gate: ${data.training_gate}</span>
+    `;
+    auditEl.style.display = 'block';
+  }
+}
+
+function showMsError(msg) {
+  const discEl = document.getElementById('ms-disclaimer');
+  const discText = document.getElementById('ms-disclaimer-text');
+  if (discEl && discText) {
+    discText.textContent = msg;
+    discEl.style.display = 'flex';
+  }
+}

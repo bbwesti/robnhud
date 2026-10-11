@@ -1,0 +1,25 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "pipeline": {
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**", "target/release/**", ".next/**"]
+    },
+    "test": {
+      "dependsOn": ["build"],
+      "inputs": ["src/**", "test/**", "packages/**"]
+    },
+    "lint": {},
+    "worm:hash": {
+      "command": "cargo run --manifest-path apps/auditor/Cargo.toml -- hash-packages",
+      "dependsOn": ["build"],
+      "outputs": [".worm/hashes.json"]
+    },
+    "deploy:pages": {
+      "command": "cd apps/council-ui && npm run deploy",
+      "dependsOn": ["build", "worm:hash"],
+      "cache": false
+    }
+  },
+  "globalEnv": ["PLASMA_GATE_KEY", "BIFROST_RPC", "REDIS_URL", "WORM_ENDPOINT"]
+}

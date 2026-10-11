@@ -1,0 +1,79 @@
+{
+  "connectors": [
+    {
+      "id": "spx",
+      "symbol": "SPX",
+      "name": "S&P 500",
+      "source": "yahoo_finance",
+      "ticker": "^GSPC",
+      "region": "US",
+      "timezone": "America/New_York",
+      "trading_hours": {"open": "09:30", "close": "16:00"},
+      "plasma_gate_verified": true
+    },
+    {
+      "id": "nkx",
+      "symbol": "NKX",
+      "name": "Nikkei 225",
+      "source": "yahoo_finance",
+      "ticker": "^N225",
+      "region": "JP",
+      "timezone": "Asia/Tokyo",
+      "trading_hours": {"open": "09:00", "close": "15:00"},
+      "plasma_gate_verified": true
+    },
+    {
+      "id": "dax",
+      "symbol": "DAX",
+      "name": "DAX",
+      "source": "yahoo_finance",
+      "ticker": "^GDAXI",
+      "region": "DE",
+      "timezone": "Europe/Berlin",
+      "trading_hours": {"open": "09:00", "close": "17:30"},
+      "plasma_gate_verified": true
+    },
+    {
+      "id": "kospi",
+      "symbol": "KOSPI",
+      "name": "KOSPI 200",
+      "source": "yahoo_finance",
+      "ticker": "^KS11",
+      "region": "KR",
+      "timezone": "Asia/Seoul",
+      "trading_hours": {"open": "09:00", "close": "15:30"},
+      "plasma_gate_verified": true
+    },
+    {
+      "id": "ndx",
+      "symbol": "NDX",
+      "name": "NASDAQ 100",
+      "source": "yahoo_finance",
+      "ticker": "^NDX",
+      "region": "US",
+      "timezone": "America/New_York",
+      "trading_hours": {"open": "09:30", "close": "16:00"},
+      "plasma_gate_verified": true
+    },
+    {
+      "id": "btc-perp",
+      "symbol": "BTC-PERP",
+      "name": "Bitcoin Perpetual",
+      "source": "ccxt",
+      "exchange": "binance",
+      "ticker": "BTC/USDT:USDT",
+      "region": "GLOBAL",
+      "timezone": "UTC",
+      "trading_hours": {"open": "00:00", "close": "23:59"},
+      "plasma_gate_verified": true,
+      "alt_data": ["funding_rate", "open_interest", "liquidations"]
+    }
+  ],
+  "correlation_pairs": [
+    {"a": "SPX", "b": "NDX", "typical_corr": 0.95},
+    {"a": "SPX", "b": "NKX", "typical_corr": 0.65},
+    {"a": "SPX", "b": "DAX", "typical_corr": 0.80},
+    {"a": "SPX", "b": "KOSPI", "typical_corr": 0.60},
+    {"a": "SPX", "b": "BTC-PERP", "typical_corr": 0.30}
+  ]
+}
