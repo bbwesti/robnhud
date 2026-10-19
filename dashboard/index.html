@@ -45,14 +45,14 @@
     </div>
 
     <!-- Navigation Tabs -->
-    <nav id="nav-tabs">
-      <button class="nav-tab active" data-section="command">
+    <nav id="nav-tabs" class="nav-tabs" role="tablist">
+      <button class="nav-tab active" data-section="command" role="tab" aria-selected="true" aria-controls="section-command">
         <span class="nav-glyph">&#x2B21;</span><span class="nav-label">COMMAND</span>
       </button>
-      <button class="nav-tab" data-section="marketscope">
+      <button class="nav-tab" data-section="marketscope" role="tab" aria-selected="false" aria-controls="section-marketscope">
         <span class="nav-glyph">&#x25C8;</span><span class="nav-label">MARKETSCOPE</span>
       </button>
-      <button class="nav-tab" data-section="archives">
+      <button class="nav-tab" data-section="archives" role="tab" aria-selected="false" aria-controls="section-archives">
         <span class="nav-glyph">&#x23D4;</span><span class="nav-label">ARCHIVES</span>
       </button>
     </nav>
@@ -69,7 +69,7 @@
   <main id="app">
 
     <!-- ═══ COMMAND ═══════════════════════════════════════════ -->
-    <section id="section-command" class="app-section active">
+    <section id="section-command" class="app-section active" role="tabpanel">
       <div class="command-layout">
 
         <!-- Left Column -->
@@ -150,7 +150,7 @@
     </section>
 
     <!-- ═══ MARKETSCOPE ══════════════════════════════════════ -->
-    <section id="section-marketscope" class="app-section">
+    <section id="section-marketscope" class="app-section" role="tabpanel">
       <div class="ms-layout">
         <div class="ms-hero">
           <svg class="ms-emblem" viewBox="0 0 80 80" aria-hidden="true">
@@ -211,7 +211,7 @@
     </section>
 
     <!-- ═══ ARCHIVES ═════════════════════════════════════════ -->
-    <section id="section-archives" class="app-section">
+    <section id="section-archives" class="app-section" role="tabpanel">
       <div class="archives-layout">
         <section class="panel quantabeta-panel" id="quantabeta-panel">
           <div class="panel-header">
@@ -261,7 +261,7 @@
       <div class="status-item"><span class="status-key">Next Digest</span><span class="status-val" id="status-digest">&mdash;</span></div>
       <div class="status-item"><span class="status-key">Last Refresh</span><span class="status-val" id="status-refresh">&mdash;</span></div>
       <div class="status-item" style="margin-left:auto;">
-        <span class="status-key">[R] REFRESH &nbsp; [H] HOLDINGS &nbsp; [1-3] SECTIONS &nbsp; &#9670; For the Phaeron.</span>
+        <span class="status-key">[R] REFRESH &nbsp; [1-3] SECTIONS &nbsp; &#9670; For the Phaeron.</span>
       </div>
     </div>
 

@@ -8,11 +8,11 @@ description = "Bridge between CRYPTEK VIGIL f64 prices and QuantaBeta exact rati
 rug = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
-sha2 = "0.10"
-hex = "0.4"
+sha2 = { workspace = true }
+hex = { workspace = true }
 quantabeta-core = { path = "../../vendor/quantabeta-core/crates/quantabeta-core" }
 ramanujan-ops = { path = "../../vendor/quantabeta-core/crates/ramanujan-ops" }
 true-entropy = { path = "../../vendor/quantabeta-core/crates/true-entropy" }
-rusqlite = { version = "0.32", features = ["bundled"] }
+rusqlite = { workspace = true }
 chrono = { workspace = true }
 tracing = { workspace = true }

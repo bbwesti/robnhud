@@ -37,14 +37,14 @@ pub fn check_alerts(conn: &Connection, snapshot: &PriceSnapshot, holdings: &[Hol
         let state: Option<(f64, Option<String>, Option<String>)> = conn
             .query_row("SELECT baseline, last_fired, last_direction FROM alert_state WHERE symbol = ?1", [&holding.symbol], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))
             .ok();
-        let baseline = match state {
-            Some((b, _, _)) => b,
+        let (baseline, last_fired_str, last_direction) = match state {
+            Some((b, lf, ld)) => (b, lf, ld),
             None => {
                 conn.execute("INSERT OR REPLACE INTO alert_state (symbol, baseline) VALUES (?1, ?2)", rusqlite::params![holding.symbol, price.price]).ok();
                 continue;
             }
         };
-        let (_, last_fired_str, last_direction) = state.unwrap();
+        if baseline == 0.0 { continue; }
         if let Some(lf) = &last_fired_str {
             if let Ok(last_fired) = DateTime::parse_from_rfc3339(lf) {
                 let elapsed = Utc::now() - last_fired.with_timezone(&Utc);
@@ -61,8 +61,8 @@ pub fn check_alerts(conn: &Connection, snapshot: &PriceSnapshot, holdings: &[Hol
                     message: format!("{} +{:.1}% — ${:.4} (from ${:.4})", holding.symbol, change_pct, price.price, baseline),
                     timestamp: Utc::now(),
                 };
-                // Reset baseline to current price and re-arm from new level
-                conn.execute("UPDATE alert_state SET baseline = ?1, last_fired = ?2, last_direction = NULL WHERE symbol = ?3", rusqlite::params![price.price, Utc::now().to_rfc3339(), holding.symbol]).ok();
+                // Reset baseline to current price, record direction for hysteresis
+                conn.execute("UPDATE alert_state SET baseline = ?1, last_fired = ?2, last_direction = 'up' WHERE symbol = ?3", rusqlite::params![price.price, Utc::now().to_rfc3339(), holding.symbol]).ok();
                 tracing::info!("{} alert FIRED UP +{:.1}% — baseline reset ${:.4} → ${:.4}", holding.symbol, change_pct, baseline, price.price);
                 fired.push(alert);
             }
@@ -76,8 +76,8 @@ pub fn check_alerts(conn: &Connection, snapshot: &PriceSnapshot, holdings: &[Hol
                     message: format!("{} {:.1}% — ${:.4} (from ${:.4})", holding.symbol, change_pct, price.price, baseline),
                     timestamp: Utc::now(),
                 };
-                // Reset baseline to current price and re-arm from new level
-                conn.execute("UPDATE alert_state SET baseline = ?1, last_fired = ?2, last_direction = NULL WHERE symbol = ?3", rusqlite::params![price.price, Utc::now().to_rfc3339(), holding.symbol]).ok();
+                // Reset baseline to current price, record direction for hysteresis
+                conn.execute("UPDATE alert_state SET baseline = ?1, last_fired = ?2, last_direction = 'down' WHERE symbol = ?3", rusqlite::params![price.price, Utc::now().to_rfc3339(), holding.symbol]).ok();
                 tracing::info!("{} alert FIRED DOWN {:.1}% — baseline reset ${:.4} → ${:.4}", holding.symbol, change_pct, baseline, price.price);
                 fired.push(alert);
             }
@@ -197,9 +197,9 @@ mod tests {
         // Baseline should now be $1.04
         let baseline: f64 = conn.query_row("SELECT baseline FROM alert_state WHERE symbol = 'XRP'", [], |r| r.get(0)).unwrap();
         assert!((baseline - 1.04).abs() < 0.001);
-        // last_direction should be cleared (re-armed)
+        // last_direction should record the fired direction for hysteresis
         let dir: Option<String> = conn.query_row("SELECT last_direction FROM alert_state WHERE symbol = 'XRP'", [], |r| r.get(0)).unwrap();
-        assert!(dir.is_none());
+        assert_eq!(dir.as_deref(), Some("up"));
     }
 
     #[test]

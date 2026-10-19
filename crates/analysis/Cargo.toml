@@ -1,12 +1,11 @@
 [package]
-name = "vigil-quant"
+name = "vigil-analysis"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-vigil-core = { path = "../core" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 chrono = { workspace = true }
-sha2 = "0.10"
-hex = "0.4"
+sha2 = { workspace = true }
+hex = { workspace = true }

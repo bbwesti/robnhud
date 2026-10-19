@@ -6,8 +6,7 @@ use lettre::message::header::ContentType;
 use lettre::transport::smtp::authentication::Credentials;
 use lettre::{Message, SmtpTransport, Transport};
 use vigil_core::{Holding, NewsItem, PriceSnapshot};
-use vigil_quant::ScenarioBands;
-use vigil_regime::Regime;
+use vigil_analysis::{ScenarioBands, Regime};
 
 pub fn analyze_relevance(title: &str, holdings: &[Holding]) -> Option<String> {
     let title_upper = title.to_uppercase();

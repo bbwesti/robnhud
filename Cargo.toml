@@ -4,17 +4,16 @@ members = [
     "crates/core",
     "crates/ingestor",
     "crates/worm",
-    "crates/regime",
-    "crates/quant",
+    "crates/analysis",
     "crates/alerts",
     "crates/digest",
+    "crates/market-types",
+    "crates/governance",
+    "crates/quantabeta-bridge",
     "apps/vigil",
     "vendor/quantabeta-core/crates/quantabeta-core",
     "vendor/quantabeta-core/crates/true-entropy",
     "vendor/quantabeta-core/crates/ramanujan-ops",
-    "crates/quantabeta-bridge",
-    "crates/market-types",
-    "crates/governance",
 ]
 
 [workspace.dependencies]
@@ -31,3 +30,6 @@ hex = "0.4"
 blake3 = "1"
 ed25519-dalek = { version = "2", features = ["rand_core"] }
 rand = "0.8"
+rusqlite = { version = "0.32", features = ["bundled"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+uuid = { version = "1", features = ["v4", "serde"] }

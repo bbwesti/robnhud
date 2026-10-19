@@ -1,38 +1,42 @@
-.env
-robnhud.db
-robnhud.db-shm
-robnhud.db-wal
-worm.db
-cloudflared.exe
-tunnel.log
-tunnel_url.txt
-tunnel_token.txt
-tunnel_named.log
-vigil.log
-__pycache__/
-*.pyc
-.playwright-mcp/
-SESSION_SUMMARY.md
+# Runtime data
+*.db
+*.db-shm
+*.db-wal
+*.log
 positions.txt
-.worktrees/
-.superpowers/
-.vigil_keys/
-docs/
 
-# Startup scripts (contain local paths)
-start-vigil.bat
-start-vigil.vbs
+# Secrets & tokens
+.env
+tunnel_token.txt
+tunnel_url.txt
+.vigil_keys/
+
+# Binaries
+cloudflared.exe
+*.exe
 
 # Rust
 /target/
 *.rs.bk
-Cargo.lock
 
-# Legacy Python (replaced by Rust)
+# Legacy Python
 *.py
 *.pyc
-requirements.txt
+__pycache__/
+
+# Startup scripts (contain local paths)
+start-vigil.bat
+start-vigil.vbs
 start_robnhud.bat
-scheduler.log
+start_robnhud.vbs
+termux-setup.sh
+
+# Tool caches
+.playwright-mcp/
+.superpowers/
+.worktrees/
+
+# Misc
+SESSION_SUMMARY.md
+docs/
 scheduler.pid
-scheduler_output.log

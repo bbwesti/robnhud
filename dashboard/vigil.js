@@ -93,7 +93,7 @@ function drawSparkline(canvasEl, prices, color) {
   c.stroke();
 
   // Gradient fill under the line
-  const isRgb = color.startsWith('rgb');
+  const isRgb = color.startsWith('rgb(');
   let fillColor;
   if (isRgb) {
     fillColor = color.replace(')', ',0.12)').replace('rgb', 'rgba');
@@ -127,16 +127,25 @@ function drawSparkline(canvasEl, prices, color) {
 }
 
 // Attach tooltip behavior to a sparkline canvas
-function attachSparklineTooltip(canvasEl, prices, symbol) {
+function attachSparklineTooltip(canvasEl, prices, label) {
   const tooltip = document.getElementById('sparkline-tooltip');
   if (!tooltip || !prices || prices.length < 2) return;
 
+  // Store current data for tooltip use
+  canvasEl._tooltipData = { prices, label };
+
+  // Only attach listeners once
+  if (canvasEl._tooltipAttached) return;
+  canvasEl._tooltipAttached = true;
+
   canvasEl.addEventListener('mousemove', function(e) {
+    const data = canvasEl._tooltipData;
+    if (!data) return;
     const rect = canvasEl.getBoundingClientRect();
     const relX = e.clientX - rect.left;
-    const idx = Math.min(prices.length - 1, Math.max(0, Math.round((relX / rect.width) * (prices.length - 1))));
-    const price = prices[idx];
-    tooltip.textContent = (symbol ? symbol + ': ' : '') + fmt.currency(price);
+    const idx = Math.min(data.prices.length - 1, Math.max(0, Math.round((relX / rect.width) * (data.prices.length - 1))));
+    const price = data.prices[idx];
+    tooltip.textContent = (data.label ? data.label + ': ' : '') + fmt.currency(price);
     tooltip.style.display = 'block';
     tooltip.style.left = (e.clientX + 10) + 'px';
     tooltip.style.top  = (e.clientY - 24) + 'px';
@@ -296,6 +305,10 @@ async function fetchData() {
 
     resetCountdown();
 
+    // Update status dot to reflect successful connection
+    const dot = document.querySelector('.status-dot');
+    if (dot) dot.style.background = '#00ff66';
+
     // After DOM is updated, redraw sparklines from cached history
     if (Object.keys(historyData).length > 0) {
       redrawHoldingSparklines();
@@ -304,16 +317,24 @@ async function fetchData() {
     }
   } catch (err) {
     console.error('[VIGIL] fetch error:', err);
+    const dot = document.querySelector('.status-dot');
+    if (dot) dot.style.background = '#ff3333';
     flashError('TRANSMISSION INTERRUPTED — ' + err.message);
   }
 }
 
-function flashError(msg) {
+function flashMessage(msg, type) {
+  type = type || 'error';
   const el = document.getElementById('error-banner');
   if (!el) return;
   el.textContent = msg;
+  el.className = 'error-banner visible' + (type === 'info' ? ' info' : '');
   el.style.display = 'block';
-  setTimeout(() => { el.style.display = 'none'; }, 5000);
+  setTimeout(function() { el.style.display = 'none'; el.className = 'error-banner'; }, type === 'error' ? 8000 : 3000);
+}
+
+function flashError(msg) {
+  flashMessage(msg, 'error');
 }
 
 // ── DOM Updaters ──────────────────────────────────────────────
@@ -324,7 +345,7 @@ function updatePortfolio(p) {
 
   const elPl  = document.getElementById('vault-pl');
   if (elPl) {
-    const sign = Number(p.total_pl) >= 0 ? '+' : '';
+    const sign = Number(p.total_pl) >= 0 ? '+' : '-';
     elPl.textContent = `${sign}${fmt.currency(p.total_pl)} (${fmt.pct(p.total_pl_pct)})`;
     elPl.className   = 'vault-pl ' + signClass(p.total_pl);
   }
@@ -358,7 +379,7 @@ function updateHoldings(holdings) {
         </div>
         <div class="holding-right-stack">
           <div class="holding-value-big">${fmt.currency(h.value)}</div>
-          <div class="holding-pl ${plClass}">${plSign}${fmt.currency(h.pl)} (${fmt.pct(((Number(h.pl)) / (Number(h.value) - Number(h.pl))) * 100)})</div>
+          <div class="holding-pl ${plClass}">${plSign}${fmt.currency(h.pl)} (${fmt.pct((Number(h.value) - Number(h.pl)) !== 0 ? ((Number(h.pl)) / (Number(h.value) - Number(h.pl))) * 100 : 0)})</div>
         </div>
         <div class="holding-sparkline-wrap">
           <canvas class="sparkline" width="120" height="30" aria-label="${h.symbol} value history"></canvas>
@@ -585,22 +606,27 @@ function updateScenarios(scenarios) {
 
     const bands = Array.isArray(sc.bands) ? sc.bands : [];
 
-    // Find price range for bar scaling
-    const vals = bands.map(b => Number(b.price || b.value || 0)).filter(v => !isNaN(v) && v > 0);
+    // Find price range for bar scaling (use upper bound of each band's range)
+    const vals = bands.map(b => {
+      const r = Array.isArray(b.range) ? b.range : [];
+      return Math.max(Math.abs(Number(r[0]) || 0), Math.abs(Number(r[1]) || 0));
+    }).filter(v => v > 0);
     const maxVal = vals.length ? Math.max(...vals) : 1;
 
     const bandsHtml = bands.map(b => {
-      const rawVal = Number(b.price || b.value || 0);
-      const pctBar = maxVal > 0 ? ((rawVal / maxVal) * 100).toFixed(1) : 0;
-      const pctDisp = b.probability != null ? (Number(b.probability) * 100).toFixed(1) + '%' : '';
+      const r = Array.isArray(b.range) ? b.range : [0, 0];
+      const lo = Number(r[0]) || 0;
+      const hi = Number(r[1]) || 0;
+      const mid = (lo + hi) / 2;
+      const pctBar = maxVal > 0 ? ((Math.abs(mid) / maxVal) * 100).toFixed(1) : 0;
       return `
         <div class="scenario-band">
           <div class="band-label">${b.label || b.scenario || ''}</div>
           <div class="band-bar-track">
             <div class="band-bar-fill" style="width:${pctBar}%"></div>
           </div>
-          <div class="band-val">${rawVal > 0 ? fmt.currency(rawVal) : '--'}</div>
-          <div class="band-pct">${pctDisp}</div>
+          <div class="band-val">${fmt.currency(lo)} \u2014 ${fmt.currency(hi)}</div>
+          <div class="band-pct">${b.probability || ''}</div>
         </div>
       `;
     }).join('');
@@ -636,9 +662,15 @@ function updateStatus(status) {
 async function fetchQuantaBeta() {
     try {
         const res = await fetch('/api/quantabeta');
+        if (!res.ok) throw new Error('HTTP ' + res.status);
         const data = await res.json();
         if (data.status === 'no_data') {
             document.getElementById('qb-status').textContent = 'STANDBY';
+            return;
+        }
+
+        if (!Array.isArray(data.assets) || data.assets.length === 0) {
+            document.getElementById('qb-status').textContent = 'NO ASSETS';
             return;
         }
 
@@ -671,7 +703,7 @@ async function fetchQuantaBeta() {
             tbody.appendChild(tr);
         }
 
-        if (data.cross_correlations.length > 0) {
+        if (Array.isArray(data.cross_correlations) && data.cross_correlations.length > 0) {
             document.getElementById('qb-cross-section').style.display = 'block';
             const crossList = document.getElementById('qb-cross-list');
             crossList.innerHTML = '';
@@ -698,6 +730,7 @@ async function verifyGovernanceSeal(seal) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(seal),
         });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
         const result = await res.json();
 
         if (result.is_replay) {
@@ -732,7 +765,11 @@ function initParticles() {
   ctx = canvas.getContext('2d');
 
   resizeCanvas();
-  window.addEventListener('resize', resizeCanvas);
+  let resizeTimeout;
+  window.addEventListener('resize', function() {
+    clearTimeout(resizeTimeout);
+    resizeTimeout = setTimeout(resizeCanvas, 150);
+  });
 
   particles = [];
   for (let i = 0; i < PARTICLE_COUNT; i++) {
@@ -790,13 +827,15 @@ function animateParticles() {
   });
 
   // Draw connection lines
+  const connDistSq = CONNECTION_DIST * CONNECTION_DIST;
   for (let i = 0; i < particles.length; i++) {
     for (let j = i + 1; j < particles.length; j++) {
-      const dx   = particles[i].x - particles[j].x;
-      const dy   = particles[i].y - particles[j].y;
-      const dist = Math.sqrt(dx * dx + dy * dy);
+      const dx     = particles[i].x - particles[j].x;
+      const dy     = particles[i].y - particles[j].y;
+      const distSq = dx * dx + dy * dy;
 
-      if (dist < CONNECTION_DIST) {
+      if (distSq < connDistSq) {
+        const dist  = Math.sqrt(distSq);
         const alpha = (1 - dist / CONNECTION_DIST) * 0.12;
         ctx.beginPath();
         ctx.moveTo(particles[i].x, particles[i].y);
@@ -847,22 +886,7 @@ function initKeyboardShortcuts() {
       fetchData();
       fetchQuantaBeta();
       fetchHistory();
-      flashError('MANUAL REFRESH INITIATED');
-      setTimeout(function() {
-        const el = document.getElementById('error-banner');
-        if (el) { el.style.display = 'none'; }
-      }, 1500);
-    }
-
-    if (key === 'H') {
-      // Toggle holdings expand/collapse all
-      holdingsExpanded = !holdingsExpanded;
-      const list = document.getElementById('holdings-list');
-      if (!list) return;
-      list.querySelectorAll('.holding-row').forEach(function(row) {
-        if (holdingsExpanded) row.classList.add('expanded');
-        else row.classList.remove('expanded');
-      });
+      flashMessage('MANUAL REFRESH INITIATED', 'info');
     }
 
     // 1/2/3 keys switch sections
@@ -919,6 +943,12 @@ document.addEventListener('DOMContentLoaded', function() {
   // Tab navigation
   initNavigation();
 
+  // Hash-based tab routing
+  var hash = location.hash.slice(1);
+  if (hash && document.getElementById('section-' + hash)) {
+    switchSection(hash);
+  }
+
   // Initial data fetch then auto-refresh
   fetchData();
   fetchQuantaBeta();
@@ -953,6 +983,7 @@ function switchSection(name) {
   var targetSection = document.getElementById('section-' + name);
   if (targetTab) targetTab.classList.add('active');
   if (targetSection) targetSection.classList.add('active');
+  location.hash = '#' + name;
 }
 
 // ── MarketScope Integration ──────────────────────────────────────────────────
@@ -983,7 +1014,13 @@ function initMarketScope() {
         badge.style.background = '#00ff6622';
       }
     })
-    .catch(() => {});
+    .catch(function() {
+      const badge = document.querySelector('.ms-health-badge');
+      if (badge) {
+        badge.textContent = 'OFFLINE';
+        badge.className = 'ms-health-badge danger';
+      }
+    });
 }
 
 async function generateMarketScopeScenarios() {
@@ -1005,7 +1042,7 @@ async function generateMarketScopeScenarios() {
 
   btn.disabled = true;
   btn.classList.add('loading');
-  btn.textContent = 'GENERATING...';
+  btn.innerHTML = '<span class="ms-btn-glyph">&#x2B21;</span> GENERATING...';
   document.getElementById('ms-status').textContent = 'COMPUTING';
 
   try {
@@ -1014,6 +1051,7 @@ async function generateMarketScopeScenarios() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ symbol, values }),
     });
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
     const data = await resp.json();
 
     if (data.error) {
@@ -1027,7 +1065,7 @@ async function generateMarketScopeScenarios() {
   } finally {
     btn.disabled = false;
     btn.classList.remove('loading');
-    btn.textContent = 'GENERATE SCENARIO BANDS';
+    btn.innerHTML = '<span class="ms-btn-glyph">&#x2B21;</span> GENERATE SCENARIO BANDS';
     document.getElementById('ms-status').textContent = 'READY';
   }
 }
@@ -1046,37 +1084,35 @@ function renderMarketScopeResult(data) {
   if (statsEl && data.statistics) {
     const s = data.statistics;
     statsEl.innerHTML = [
-      { label: 'MEAN', value: s.mean.toFixed(2) },
-      { label: 'STD DEV', value: s.std.toFixed(2) },
-      { label: 'MIN', value: s.min.toFixed(2) },
-      { label: 'MAX', value: s.max.toFixed(2) },
-      { label: 'COUNT', value: s.count },
+      { label: 'MEAN', value: Number(s.mean || 0).toFixed(2) },
+      { label: 'STD DEV', value: Number(s.std_dev || 0).toFixed(2) },
+      { label: 'MIN', value: Number(s.min || 0).toFixed(2) },
+      { label: 'MAX', value: Number(s.max || 0).toFixed(2) },
+      { label: 'COUNT', value: s.count || 0 },
     ].map(m => `<div class="ms-stat"><div class="ms-stat-label">${m.label}</div><div class="ms-stat-value">${m.value}</div></div>`).join('');
     statsEl.style.display = 'grid';
   }
 
   // Scenarios
   const scenEl = document.getElementById('ms-scenarios');
-  if (scenEl && data.scenarios) {
+  if (scenEl && data.bands) {
     const typeClass = { bull_case: 'bull', base_case: 'base', bear_case: 'bear', tail_risk: 'tail' };
-    scenEl.innerHTML = data.scenarios.map(sc => `
+    scenEl.innerHTML = data.bands.map(sc => `
       <div class="ms-scenario ${typeClass[sc.scenario] || ''}">
         <span class="ms-scenario-label">${sc.label}</span>
         <span class="ms-scenario-range">[${sc.range[0].toFixed(2)} \u2014 ${sc.range[1].toFixed(2)}]</span>
         <span class="ms-scenario-prob">${sc.probability}</span>
-        <span class="ms-scenario-note">${sc.note}</span>
       </div>
     `).join('');
   }
 
   // Audit info
   const auditEl = document.getElementById('ms-audit');
-  if (auditEl) {
+  if (auditEl && data.data_hash) {
     auditEl.innerHTML = `
       <span>Data Hash: ${data.data_hash}</span>
-      <span>Audit Spec: ${data.audit_spec}</span>
-      <span>Timestamp: ${data.timestamp}</span>
-      <span>Training Gate: ${data.training_gate}</span>
+      <span>Symbol: ${data.symbol}</span>
+      <span>Samples: ${data.statistics ? data.statistics.count : '--'}</span>
     `;
     auditEl.style.display = 'block';
   }

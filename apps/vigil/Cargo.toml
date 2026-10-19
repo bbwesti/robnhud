@@ -7,12 +7,12 @@ edition = "2021"
 vigil-core = { path = "../../crates/core" }
 vigil-ingestor = { path = "../../crates/ingestor" }
 vigil-worm = { path = "../../crates/worm" }
-vigil-regime = { path = "../../crates/regime" }
-vigil-quant = { path = "../../crates/quant" }
+vigil-analysis = { path = "../../crates/analysis" }
 vigil-alerts = { path = "../../crates/alerts" }
 vigil-digest = { path = "../../crates/digest" }
 vigil-market-types = { path = "../../crates/market-types" }
 vigil-governance = { path = "../../crates/governance" }
+quantabeta-bridge = { path = "../../crates/quantabeta-bridge" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 chrono = { workspace = true }
@@ -23,9 +23,8 @@ tracing-subscriber = "0.3"
 axum = "0.7"
 tower-http = { version = "0.6", features = ["fs", "cors"] }
 rust-embed = "8"
-rusqlite = { version = "0.32", features = ["bundled"] }
-reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
-quantabeta-bridge = { path = "../../crates/quantabeta-bridge" }
+rusqlite = { workspace = true }
+reqwest = { workspace = true }
 blake3 = { workspace = true }
 ed25519-dalek = { workspace = true }
 rand = { workspace = true }
