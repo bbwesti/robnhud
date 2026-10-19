@@ -3,7 +3,7 @@
 //! Main binary: Axum web server + scheduler + Cloudflare tunnel.
 
 use axum::{
-    extract::State,
+    extract::{rejection::JsonRejection, State},
     http::StatusCode,
     response::{Html, IntoResponse, Response},
     routing::{get, post},
@@ -138,32 +138,53 @@ async fn api_data(State(state): State<AppState>) -> axum::Json<serde_json::Value
     }))
 }
 
-async fn api_history(State(state): State<AppState>) -> axum::Json<serde_json::Value> {
+async fn api_history(State(state): State<AppState>) -> (StatusCode, axum::Json<serde_json::Value>) {
     let db = state.db.lock().await;
-    let mut stmt = db.prepare(
+    let stmt = db.prepare(
         "SELECT symbol, price, change_pct, timestamp FROM price_history ORDER BY timestamp DESC LIMIT 500"
-    ).unwrap();
+    );
 
-    let rows: Vec<serde_json::Value> = stmt.query_map([], |row| {
+    let mut stmt = match stmt {
+        Ok(s) => s,
+        Err(e) => {
+            tracing::error!("Failed to prepare history query: {e}");
+            return (StatusCode::INTERNAL_SERVER_ERROR, axum::Json(serde_json::json!({"error": "database query failed"})));
+        }
+    };
+
+    let rows_result = stmt.query_map([], |row| {
         Ok(serde_json::json!({
             "symbol": row.get::<_, String>(0)?,
             "price": row.get::<_, f64>(1)?,
             "change_pct": row.get::<_, f64>(2)?,
             "timestamp": row.get::<_, String>(3)?,
         }))
-    }).unwrap().filter_map(|r| r.ok()).collect();
+    });
 
-    axum::Json(serde_json::json!({ "history": rows }))
+    let rows: Vec<serde_json::Value> = match rows_result {
+        Ok(mapped) => mapped.filter_map(|r| r.ok()).collect(),
+        Err(e) => {
+            tracing::error!("Failed to execute history query: {e}");
+            return (StatusCode::INTERNAL_SERVER_ERROR, axum::Json(serde_json::json!({"error": "database query failed"})));
+        }
+    };
+
+    (StatusCode::OK, axum::Json(serde_json::json!({ "history": rows })))
 }
 
 /// POST /api/sync — Accept position updates from external sources (e.g. Robinhood MCP)
 async fn api_sync(
     State(state): State<AppState>,
-    axum::Json(payload): axum::Json<serde_json::Value>,
-) -> axum::Json<serde_json::Value> {
+    payload: Result<axum::Json<serde_json::Value>, JsonRejection>,
+) -> (StatusCode, axum::Json<serde_json::Value>) {
+    let payload = match payload {
+        Ok(axum::Json(v)) => v,
+        Err(e) => return (StatusCode::BAD_REQUEST, axum::Json(serde_json::json!({"error": format!("invalid JSON: {e}")}))),
+    };
+
     let positions = match payload.get("positions").and_then(|p| p.as_array()) {
         Some(arr) => arr,
-        None => return axum::Json(serde_json::json!({"error": "missing positions array", "synced": 0})),
+        None => return (StatusCode::BAD_REQUEST, axum::Json(serde_json::json!({"error": "missing positions array"}))),
     };
 
     let db = state.db.lock().await;
@@ -200,18 +221,28 @@ async fn api_sync(
     }
 
     tracing::info!("Synced {} positions via /api/sync", synced);
-    axum::Json(serde_json::json!({"synced": synced, "status": "ok"}))
+    (StatusCode::OK, axum::Json(serde_json::json!({"synced": synced, "status": "ok"})))
 }
 
 /// DELETE /api/positions/:symbol — Remove a position
 async fn api_delete_position(
     State(state): State<AppState>,
     axum::extract::Path(symbol): axum::extract::Path<String>,
-) -> axum::Json<serde_json::Value> {
+) -> (StatusCode, axum::Json<serde_json::Value>) {
+    // Validate symbol: must be non-empty, alphanumeric (with dots/hyphens allowed), max 20 chars
+    let symbol = symbol.trim().to_uppercase();
+    if symbol.is_empty() || symbol.len() > 20 || !symbol.chars().all(|c| c.is_alphanumeric() || c == '.' || c == '-') {
+        return (StatusCode::BAD_REQUEST, axum::Json(serde_json::json!({"error": "invalid symbol parameter"})));
+    }
+
     let db = state.db.lock().await;
     let deleted = db.execute("DELETE FROM holdings WHERE symbol = ?1", [&symbol]).unwrap_or(0);
 
-    if deleted > 0 {
+    if deleted == 0 {
+        return (StatusCode::NOT_FOUND, axum::Json(serde_json::json!({"error": "position not found", "symbol": symbol})));
+    }
+
+    {
         let wdb = state.worm_db.lock().await;
         if let Err(e) = vigil_worm::append_signed(
             &wdb,
@@ -223,7 +254,7 @@ async fn api_delete_position(
         }
     }
 
-    axum::Json(serde_json::json!({"deleted": deleted, "symbol": symbol}))
+    (StatusCode::OK, axum::Json(serde_json::json!({"deleted": deleted, "symbol": symbol})))
 }
 
 async fn api_quantabeta(State(state): State<AppState>) -> axum::Json<serde_json::Value> {
@@ -236,8 +267,13 @@ async fn api_quantabeta(State(state): State<AppState>) -> axum::Json<serde_json:
 
 async fn api_governance_verify(
     State(state): State<AppState>,
-    axum::Json(seal): axum::Json<vigil_governance::GovernanceSeal>,
-) -> axum::Json<serde_json::Value> {
+    seal: Result<axum::Json<vigil_governance::GovernanceSeal>, JsonRejection>,
+) -> (StatusCode, axum::Json<serde_json::Value>) {
+    let seal = match seal {
+        Ok(axum::Json(s)) => s,
+        Err(e) => return (StatusCode::BAD_REQUEST, axum::Json(serde_json::json!({"error": format!("invalid seal payload: {e}")}))),
+    };
+
     let mut seen = state.governance_seen.write().await;
     let result = vigil_governance::verify_seal(&seal, &seen);
 
@@ -263,18 +299,23 @@ async fn api_governance_verify(
         seen.insert(seal.decision_id.clone());
     }
 
-    axum::Json(serde_json::to_value(&result).unwrap_or_default())
+    (StatusCode::OK, axum::Json(serde_json::to_value(&result).unwrap_or_default()))
 }
 
 async fn api_verify_payload(
-    axum::Json(payload): axum::Json<vigil_market_types::verify::SignedPayload>,
-) -> axum::Json<serde_json::Value> {
+    payload: Result<axum::Json<vigil_market_types::verify::SignedPayload>, JsonRejection>,
+) -> (StatusCode, axum::Json<serde_json::Value>) {
+    let payload = match payload {
+        Ok(axum::Json(p)) => p,
+        Err(e) => return (StatusCode::BAD_REQUEST, axum::Json(serde_json::json!({"error": format!("invalid payload: {e}")}))),
+    };
+
     let valid = payload.verify();
-    axum::Json(serde_json::json!({
+    (StatusCode::OK, axum::Json(serde_json::json!({
         "valid": valid,
         "data_hash": payload.data_hash,
         "pubkey": payload.pubkey,
-    }))
+    })))
 }
 
 // ── MarketScope Integration ──────────────────────────────────────────────────
@@ -282,8 +323,13 @@ async fn api_verify_payload(
 /// POST /api/scenarios/generate — Generate scenario bands from user-provided values
 async fn api_generate_scenarios(
     State(state): State<AppState>,
-    axum::Json(payload): axum::Json<serde_json::Value>,
-) -> axum::Json<serde_json::Value> {
+    payload: Result<axum::Json<serde_json::Value>, JsonRejection>,
+) -> (StatusCode, axum::Json<serde_json::Value>) {
+    let payload = match payload {
+        Ok(axum::Json(v)) => v,
+        Err(e) => return (StatusCode::BAD_REQUEST, axum::Json(serde_json::json!({"error": format!("invalid JSON: {e}")}))),
+    };
+
     let symbol = payload.get("symbol").and_then(|s| s.as_str()).unwrap_or("UNKNOWN");
     let values: Vec<f64> = payload
         .get("values")
@@ -291,9 +337,13 @@ async fn api_generate_scenarios(
         .map(|arr| arr.iter().filter_map(|v| v.as_f64()).collect())
         .unwrap_or_default();
 
+    if values.is_empty() {
+        return (StatusCode::BAD_REQUEST, axum::Json(serde_json::json!({"error": "missing or empty values array"})));
+    }
+
     let bands = match vigil_analysis::generate_scenario_bands(&values, symbol) {
         Some(b) => b,
-        None => return axum::Json(serde_json::json!({"error": "Need at least 2 values", "scenarios": []})),
+        None => return (StatusCode::BAD_REQUEST, axum::Json(serde_json::json!({"error": "need at least 2 numeric values"}))),
     };
 
     // Log to WORM chain
@@ -313,30 +363,39 @@ async fn api_generate_scenarios(
         }
     }
 
-    axum::Json(serde_json::to_value(&bands).unwrap_or_default())
+    (StatusCode::OK, axum::Json(serde_json::to_value(&bands).unwrap_or_default()))
 }
 
 /// POST /api/compliance/check — Check signal compliance against sovereign constraints
 async fn api_compliance_check(
-    axum::Json(signal): axum::Json<serde_json::Value>,
-) -> axum::Json<serde_json::Value> {
-    let signal_type = signal.get("type").and_then(|s| s.as_str()).unwrap_or("");
+    payload: Result<axum::Json<serde_json::Value>, JsonRejection>,
+) -> (StatusCode, axum::Json<serde_json::Value>) {
+    let signal = match payload {
+        Ok(axum::Json(v)) => v,
+        Err(e) => return (StatusCode::BAD_REQUEST, axum::Json(serde_json::json!({"error": format!("invalid JSON: {e}")}))),
+    };
+
+    let signal_type = match signal.get("type").and_then(|s| s.as_str()) {
+        Some(t) if !t.is_empty() => t,
+        _ => return (StatusCode::BAD_REQUEST, axum::Json(serde_json::json!({"error": "missing or empty 'type' field"}))),
+    };
+
     let prohibited = ["buy_signal", "sell_signal", "price_target", "trade_recommendation"];
 
     if prohibited.contains(&signal_type) {
-        return axum::Json(serde_json::json!({
+        return (StatusCode::OK, axum::Json(serde_json::json!({
             "compliant": false,
             "violation": "financial_advice_prohibited",
             "message": "This signal type is PROHIBITED under sovereign axioms",
             "audit_spec": "4b565498-9afc-4782-af4a-c6b11a5d0058",
-        }));
+        })));
     }
 
-    axum::Json(serde_json::json!({
+    (StatusCode::OK, axum::Json(serde_json::json!({
         "compliant": true,
         "message": "Signal passed compliance check",
         "training_gate": "Human_Review_Required",
-    }))
+    })))
 }
 
 /// GET /api/marketscope/health — MarketScope integration health check

@@ -12,7 +12,7 @@
 <body>
 
   <!-- ── Countdown Refresh Bar ──────────────────────────── -->
-  <div id="countdown-bar"><div id="countdown-fill"></div></div>
+  <div id="countdown-bar" aria-hidden="true"><div id="countdown-fill"></div></div>
 
   <!-- ── Background Layers ──────────────────────────────── -->
   <canvas id="particle-canvas" aria-hidden="true"></canvas>
@@ -44,16 +44,16 @@
       </div>
     </div>
 
-    <!-- Navigation Tabs -->
-    <nav id="nav-tabs" class="nav-tabs" role="tablist">
-      <button class="nav-tab active" data-section="command" role="tab" aria-selected="true" aria-controls="section-command">
-        <span class="nav-glyph">&#x2B21;</span><span class="nav-label">COMMAND</span>
+    <!-- Navigation Tabs (Agent 4: id attrs, aria-label on tablist, tabindex roving) -->
+    <nav id="nav-tabs" class="nav-tabs" role="tablist" aria-label="Main navigation">
+      <button id="tab-command" class="nav-tab active" data-section="command" role="tab" aria-selected="true" aria-controls="section-command" tabindex="0">
+        <span class="nav-glyph" aria-hidden="true">&#x2B21;</span><span class="nav-label">COMMAND</span>
       </button>
-      <button class="nav-tab" data-section="marketscope" role="tab" aria-selected="false" aria-controls="section-marketscope">
-        <span class="nav-glyph">&#x25C8;</span><span class="nav-label">MARKETSCOPE</span>
+      <button id="tab-marketscope" class="nav-tab" data-section="marketscope" role="tab" aria-selected="false" aria-controls="section-marketscope" tabindex="-1">
+        <span class="nav-glyph" aria-hidden="true">&#x25C8;</span><span class="nav-label">MARKETSCOPE</span>
       </button>
-      <button class="nav-tab" data-section="archives" role="tab" aria-selected="false" aria-controls="section-archives">
-        <span class="nav-glyph">&#x23D4;</span><span class="nav-label">ARCHIVES</span>
+      <button id="tab-archives" class="nav-tab" data-section="archives" role="tab" aria-selected="false" aria-controls="section-archives" tabindex="-1">
+        <span class="nav-glyph" aria-hidden="true">&#x23D4;</span><span class="nav-label">ARCHIVES</span>
       </button>
     </nav>
 
@@ -69,21 +69,25 @@
   <main id="app">
 
     <!-- ═══ COMMAND ═══════════════════════════════════════════ -->
-    <section id="section-command" class="app-section active" role="tabpanel">
+    <!-- Agent 4: aria-labelledby, tabindex="0" on tabpanel; Agent 10: tabindex="0" -->
+    <section id="section-command" class="app-section active" role="tabpanel" aria-labelledby="tab-command" tabindex="0">
       <div class="command-layout">
 
         <!-- Left Column -->
         <aside id="sidebar">
-          <section class="panel vault-glow" id="vault-panel">
-            <div class="panel-title"><span class="title-rune">&#9670;</span>Dynasty Vault</div>
+          <!-- Agent 10: aria-live on vault region -->
+          <section class="panel vault-glow" id="vault-panel" aria-live="polite">
+            <div class="panel-title"><span class="title-rune" aria-hidden="true">&#9670;</span>Dynasty Vault</div>
             <div class="vault-label">TOTAL HOLDINGS VALUE</div>
             <div class="vault-value" id="vault-value">$---.--</div>
             <div id="vault-pl" class="vault-pl">-- (--)</div>
-            <canvas id="vault-chart" class="vault-chart" width="320" height="70" aria-label="Portfolio value sparkline"></canvas>
+            <!-- Agent 3: removed width/height attrs; Agent 10: role="img" -->
+            <canvas id="vault-chart" class="vault-chart" role="img" aria-label="Portfolio value sparkline"></canvas>
           </section>
 
-          <section class="panel">
-            <div class="panel-title"><span class="title-rune">&#9670;</span>Asset Manifest</div>
+          <!-- Agent 10: aria-live on holdings region -->
+          <section class="panel" aria-live="polite">
+            <div class="panel-title"><span class="title-rune" aria-hidden="true">&#9670;</span>Asset Manifest</div>
             <div class="holdings-sort-bar" id="holdings-sort-bar">
               <span class="sort-label">VIEW:</span>
               <button class="sort-btn active" data-sort="value">VALUE</button>
@@ -96,11 +100,12 @@
             </div>
           </section>
 
-          <section class="panel">
-            <div class="panel-title"><span class="title-rune">&#9670;</span>Alert States</div>
+          <!-- Agent 10: aria-live on alerts region -->
+          <section class="panel" aria-live="polite">
+            <div class="panel-title"><span class="title-rune" aria-hidden="true">&#9670;</span>Alert States</div>
             <div class="alerts-list" id="alerts-list">
               <div class="alert-row inactive">
-                <div class="alert-dot"></div>
+                <div class="alert-dot" aria-hidden="true"></div>
                 <span class="alert-symbol">SCANNING&hellip;</span>
               </div>
             </div>
@@ -110,13 +115,14 @@
         <!-- Right Area -->
         <div class="command-main">
           <div class="command-top-row">
-            <section class="panel">
-              <div class="panel-title"><span class="title-rune">&#9670;</span>Market Regime</div>
+            <!-- Agent 10: aria-live on regime region -->
+            <section class="panel" aria-live="polite">
+              <div class="panel-title"><span class="title-rune" aria-hidden="true">&#9670;</span>Market Regime</div>
               <div class="regime-badge neutral" id="regime-badge">SCANNING</div>
               <div class="regime-desc" id="regime-desc">Awaiting classification signal&hellip;</div>
             </section>
             <section class="panel">
-              <div class="panel-title"><span class="title-rune">&#9670;</span>WORM Chain Integrity</div>
+              <div class="panel-title"><span class="title-rune" aria-hidden="true">&#9670;</span>WORM Chain Integrity</div>
               <div class="worm-status">
                 <div class="worm-row"><span class="worm-key">Integrity</span><span class="worm-val" id="worm-valid">&mdash;</span></div>
                 <div class="worm-row"><span class="worm-key">Block Count</span><span class="worm-val" id="worm-count">&mdash;</span></div>
@@ -130,8 +136,9 @@
             </section>
           </div>
 
-          <section class="panel">
-            <div class="panel-title"><span class="title-rune">&#9670;</span>Global Indices</div>
+          <!-- Agent 10: aria-live on indices region -->
+          <section class="panel" aria-live="polite">
+            <div class="panel-title"><span class="title-rune" aria-hidden="true">&#9670;</span>Global Indices</div>
             <div class="indices-grid" id="indices-grid">
               <div class="index-card shimmer" style="height:100px;"></div>
               <div class="index-card shimmer" style="height:100px;"></div>
@@ -139,8 +146,9 @@
             </div>
           </section>
 
-          <section class="panel">
-            <div class="panel-title"><span class="title-rune">&#9670;</span>Scenario Bands &mdash; Probability Projections</div>
+          <!-- Agent 10: aria-live on scenarios region -->
+          <section class="panel" aria-live="polite">
+            <div class="panel-title"><span class="title-rune" aria-hidden="true">&#9670;</span>Scenario Bands &mdash; Probability Projections</div>
             <div class="scenarios-list" id="scenarios-list">
               <div class="scenario-item shimmer" style="height:100px;"></div>
             </div>
@@ -150,7 +158,8 @@
     </section>
 
     <!-- ═══ MARKETSCOPE ══════════════════════════════════════ -->
-    <section id="section-marketscope" class="app-section" role="tabpanel">
+    <!-- Agent 4: aria-labelledby, hidden on inactive; Agent 10: tabindex="0" -->
+    <section id="section-marketscope" class="app-section" role="tabpanel" aria-labelledby="tab-marketscope" tabindex="0" hidden>
       <div class="ms-layout">
         <div class="ms-hero">
           <svg class="ms-emblem" viewBox="0 0 80 80" aria-hidden="true">
@@ -180,19 +189,22 @@
             </div>
             <div class="ms-input-group ms-values-group">
               <label class="ms-label" for="ms-values">DATA VALUES (comma-separated)</label>
-              <input type="text" id="ms-values" class="ms-input" placeholder="4500, 4520, 4480, 4550, 4470, 4510">
+              <!-- Agent 10: aria-describedby for ms-values input -->
+              <input type="text" id="ms-values" class="ms-input" placeholder="4500, 4520, 4480, 4550, 4470, 4510" aria-describedby="ms-values-hint">
+              <span id="ms-values-hint" class="sr-only">Enter comma-separated numeric data values for scenario generation</span>
             </div>
             <button id="ms-generate" class="ms-button">
-              <span class="ms-btn-glyph">&#x2B21;</span> GENERATE SCENARIO BANDS
+              <span class="ms-btn-glyph" aria-hidden="true">&#x2B21;</span> GENERATE SCENARIO BANDS
             </button>
           </div>
 
           <div id="ms-disclaimer" class="ms-disclaimer" style="display:none;">
-            <span class="ms-warn-icon">&#9888;</span>
+            <span class="ms-warn-icon" aria-hidden="true">&#9888;</span>
             <span id="ms-disclaimer-text"></span>
           </div>
           <div id="ms-stats" class="ms-stats" style="display:none;"></div>
-          <div id="ms-scenarios" class="ms-scenarios"></div>
+          <!-- Agent 10: aria-live on ms-scenarios -->
+          <div id="ms-scenarios" class="ms-scenarios" aria-live="polite"></div>
           <div id="ms-audit" class="ms-audit" style="display:none;"></div>
 
           <div class="ms-compliance">
@@ -211,7 +223,8 @@
     </section>
 
     <!-- ═══ ARCHIVES ═════════════════════════════════════════ -->
-    <section id="section-archives" class="app-section" role="tabpanel">
+    <!-- Agent 4: aria-labelledby, hidden on inactive; Agent 10: tabindex="0" -->
+    <section id="section-archives" class="app-section" role="tabpanel" aria-labelledby="tab-archives" tabindex="0" hidden>
       <div class="archives-layout">
         <section class="panel quantabeta-panel" id="quantabeta-panel">
           <div class="panel-header">
@@ -224,10 +237,13 @@
               <div class="qb-metric"><span class="qb-label">ENTROPY (bits)</span><span class="qb-value" id="qb-entropy">&mdash;</span></div>
               <div class="qb-metric"><span class="qb-label">HECKE PAIRS</span><span class="qb-value" id="qb-hecke-pairs">&mdash;</span></div>
             </div>
-            <table class="qb-table" id="qb-asset-table">
-              <thead><tr><th>ASSET</th><th>PARTITION VOL</th><th>ENTROPY [L, U]</th><th>COMPLEXITY</th><th>RAMANUJAN</th></tr></thead>
-              <tbody id="qb-asset-tbody"></tbody>
-            </table>
+            <!-- Agent 9: wrap qb-table in .qb-table-wrap for horizontal scroll -->
+            <div class="qb-table-wrap">
+              <table class="qb-table" id="qb-asset-table">
+                <thead><tr><th>ASSET</th><th>PARTITION VOL</th><th>ENTROPY [L, U]</th><th>COMPLEXITY</th><th>RAMANUJAN</th></tr></thead>
+                <tbody id="qb-asset-tbody"></tbody>
+              </table>
+            </div>
             <div class="qb-cross-corr" id="qb-cross-section" style="display:none;">
               <h3>HECKE CROSS-CORRELATIONS</h3>
               <div id="qb-cross-list"></div>
@@ -246,7 +262,46 @@
               <div class="gov-metric"><span class="gov-label">REPLAYS BLOCKED</span><span class="gov-value" id="gov-replay-count">0</span></div>
               <div class="gov-metric"><span class="gov-label">HASH ALGO</span><span class="gov-value">BLAKE3</span></div>
             </div>
-            <div class="gov-log" id="gov-log">
+
+            <!-- Agent 6: 7-field governance form -->
+            <form id="gov-form" class="gov-form" autocomplete="off">
+              <div class="gov-form-grid">
+                <div class="gov-field">
+                  <label for="gov-decision-id">Decision ID</label>
+                  <input type="text" id="gov-decision-id" required placeholder="e.g. GOV-2026-042">
+                </div>
+                <div class="gov-field">
+                  <label for="gov-action">Action</label>
+                  <input type="text" id="gov-action" required placeholder="e.g. rebalance_portfolio">
+                </div>
+                <div class="gov-field">
+                  <label for="gov-signer">Signer</label>
+                  <input type="text" id="gov-signer" required placeholder="e.g. phaeron_szarekh">
+                </div>
+                <div class="gov-field">
+                  <label for="gov-quorum">Quorum</label>
+                  <input type="number" id="gov-quorum" required min="1" max="99" value="3">
+                </div>
+                <div class="gov-field">
+                  <label for="gov-threshold">Threshold</label>
+                  <input type="number" id="gov-threshold" required min="1" max="99" value="2">
+                </div>
+                <div class="gov-field">
+                  <label for="gov-seal-hash">Seal Hash</label>
+                  <input type="text" id="gov-seal-hash" required placeholder="blake3 hex digest">
+                </div>
+                <div class="gov-field gov-field-wide">
+                  <label for="gov-signers-list">Signers (comma-separated)</label>
+                  <input type="text" id="gov-signers-list" required placeholder="signer_a, signer_b, signer_c">
+                </div>
+              </div>
+              <button type="submit" class="ms-button gov-submit-btn">
+                <span class="ms-btn-glyph" aria-hidden="true">&#x2B21;</span> VERIFY SEAL
+              </button>
+            </form>
+
+            <!-- Agent 10: aria-live on gov-log -->
+            <div class="gov-log" id="gov-log" aria-live="polite">
               <div class="empty-state">No governance decisions verified this session</div>
             </div>
           </div>
@@ -256,7 +311,9 @@
 
     <!-- Status Bar -->
     <div id="status-bar">
-      <div class="status-dot"></div>
+      <div class="status-dot" aria-hidden="true"></div>
+      <!-- Agent 10: sr-only span for screen readers -->
+      <span class="sr-only">System status:</span>
       <div class="status-item"><span class="status-key">Vigil Core</span><span class="status-val" id="status-vigil">&mdash;</span></div>
       <div class="status-item"><span class="status-key">Next Digest</span><span class="status-val" id="status-digest">&mdash;</span></div>
       <div class="status-item"><span class="status-key">Last Refresh</span><span class="status-val" id="status-refresh">&mdash;</span></div>
