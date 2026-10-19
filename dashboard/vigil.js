@@ -31,7 +31,6 @@ let lastData          = null;
 let historyData       = {};   // { [symbol]: [price, ...] }
 let portfolioHistory  = [];   // [ totalValue, ... ]
 let holdingsSortKey   = 'value';
-let holdingsExpanded  = false;
 const HISTORY_INTERVAL_MS = 300_000; // 5 minutes
 let govVerifiedCount = 0;
 let govReplayCount = 0;
