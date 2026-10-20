@@ -65,8 +65,20 @@ pub fn import_positions(conn: &Connection, positions_path: &Path) -> Result<usiz
         }
         let symbol = parts[0].trim();
         let asset_class = parts[1].trim();
-        let qty: f64 = parts[2].trim().parse().unwrap_or(0.0);
-        let avg_cost: f64 = parts[3].trim().parse().unwrap_or(0.0);
+        let qty: f64 = match parts[2].trim().parse() {
+            Ok(v) if v > 0.0 && f64::is_finite(v) => v,
+            _ => { eprintln!("[WARN] import_positions: skipping {symbol} — invalid qty"); continue; }
+        };
+        let avg_cost: f64 = match parts[3].trim().parse() {
+            Ok(v) if v >= 0.0 && f64::is_finite(v) => v,
+            _ => { eprintln!("[WARN] import_positions: skipping {symbol} — invalid avg_cost"); continue; }
+        };
+
+        // Validate symbol: non-empty, alphanumeric with dots/hyphens, max 20 chars
+        if symbol.is_empty() || symbol.len() > 20 || !symbol.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '.') {
+            eprintln!("[WARN] import_positions: skipping invalid symbol: {}", symbol);
+            continue;
+        }
 
         conn.execute(
             "INSERT OR REPLACE INTO holdings (symbol, asset_class, qty, avg_cost) VALUES (?1, ?2, ?3, ?4)",

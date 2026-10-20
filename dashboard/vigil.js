@@ -879,9 +879,17 @@ function initGovernanceForm() {
 
 function validateGovernanceForm() {
   var id = document.getElementById('gov-decision-id');
+  var action = document.getElementById('gov-action');
+  var proposal = document.getElementById('gov-signer');
   var hash = document.getElementById('gov-seal-hash');
+  var quorum = document.getElementById('gov-quorum');
+  var threshold = document.getElementById('gov-threshold');
   if (!id || !id.value.trim()) { flashError('Decision ID is required'); return false; }
+  if (!action || !action.value.trim()) { flashError('Action is required'); return false; }
+  if (!proposal || !proposal.value.trim()) { flashError('Proposal is required'); return false; }
   if (!hash || !hash.value.trim()) { flashError('Seal hash is required'); return false; }
+  if (quorum && (isNaN(parseInt(quorum.value, 10)) || parseInt(quorum.value, 10) < 1)) { flashError('Quorum must be a positive number'); return false; }
+  if (threshold && (isNaN(parseInt(threshold.value, 10)) || parseInt(threshold.value, 10) < 1)) { flashError('Quorum required must be a positive number'); return false; }
   return true;
 }
 

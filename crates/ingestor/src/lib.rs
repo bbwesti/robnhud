@@ -139,7 +139,12 @@ pub async fn fetch_all_prices(holdings: &[Holding], indices: &[IndexConfig], fin
     }
     let data_hash = {
         let mut hasher = Sha256::new();
-        let serialized = serde_json::to_vec(&all_prices).unwrap_or_default();
+        // BUG FIX: HashMap iteration order is non-deterministic, which produces
+        // different hashes for identical data across runs. Sort keys first so
+        // the WORM chain data_hash is reproducible.
+        let mut sorted: Vec<(&String, &Price)> = all_prices.iter().collect();
+        sorted.sort_by_key(|(k, _)| *k);
+        let serialized = serde_json::to_vec(&sorted).unwrap_or_default();
         hasher.update(&serialized);
         format!("{:x}", hasher.finalize())
     };

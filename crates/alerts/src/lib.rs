@@ -62,7 +62,9 @@ pub fn check_alerts(conn: &Connection, snapshot: &PriceSnapshot, holdings: &[Hol
                     timestamp: Utc::now(),
                 };
                 // Reset baseline to current price, record direction for hysteresis
-                conn.execute("UPDATE alert_state SET baseline = ?1, last_fired = ?2, last_direction = 'up' WHERE symbol = ?3", rusqlite::params![price.price, Utc::now().to_rfc3339(), holding.symbol]).ok();
+                if let Err(e) = conn.execute("UPDATE alert_state SET baseline = ?1, last_fired = ?2, last_direction = 'up' WHERE symbol = ?3", rusqlite::params![price.price, Utc::now().to_rfc3339(), holding.symbol]) {
+                    tracing::error!("{} alert baseline update FAILED (UP): {e} — may cause alert storm", holding.symbol);
+                }
                 tracing::info!("{} alert FIRED UP +{:.1}% — baseline reset ${:.4} → ${:.4}", holding.symbol, change_pct, baseline, price.price);
                 fired.push(alert);
             }
@@ -77,7 +79,9 @@ pub fn check_alerts(conn: &Connection, snapshot: &PriceSnapshot, holdings: &[Hol
                     timestamp: Utc::now(),
                 };
                 // Reset baseline to current price, record direction for hysteresis
-                conn.execute("UPDATE alert_state SET baseline = ?1, last_fired = ?2, last_direction = 'down' WHERE symbol = ?3", rusqlite::params![price.price, Utc::now().to_rfc3339(), holding.symbol]).ok();
+                if let Err(e) = conn.execute("UPDATE alert_state SET baseline = ?1, last_fired = ?2, last_direction = 'down' WHERE symbol = ?3", rusqlite::params![price.price, Utc::now().to_rfc3339(), holding.symbol]) {
+                    tracing::error!("{} alert baseline update FAILED (DOWN): {e} — may cause alert storm", holding.symbol);
+                }
                 tracing::info!("{} alert FIRED DOWN {:.1}% — baseline reset ${:.4} → ${:.4}", holding.symbol, change_pct, baseline, price.price);
                 fired.push(alert);
             }

@@ -204,10 +204,13 @@ async fn api_sync(
         if asset_class.len() > 20 || !asset_class.chars().all(|c| c.is_alphanumeric()) {
             continue;
         }
-        // Skip zero or negative quantities
-        if qty <= 0.0 || avg_cost < 0.0 {
+        // Skip zero/negative quantities and reject NaN/Infinity
+        if !qty.is_finite() || !avg_cost.is_finite() || qty <= 0.0 || avg_cost < 0.0 {
             continue;
         }
+
+        // Normalize symbol to uppercase for consistency with ingestor
+        let symbol = symbol.to_uppercase();
 
         if let Err(e) = db.execute(
             "INSERT OR REPLACE INTO holdings (symbol, asset_class, qty, avg_cost) VALUES (?1, ?2, ?3, ?4)",
@@ -317,10 +320,15 @@ async fn api_governance_verify(
     // If valid and approved, mark as seen for replay protection
     if result.seal_valid && result.quorum_met && !result.is_replay {
         let mut seen = state.governance_seen.write().await;
-        // Cap the seen set to prevent unbounded memory growth
+        // Evict oldest half to prevent unbounded memory growth while retaining
+        // recent replay protection (clearing all entries creates a replay window)
         if seen.len() > 10_000 {
-            seen.clear();
-            tracing::warn!("governance_seen exceeded 10k entries, cleared to prevent memory leak");
+            let entries: Vec<String> = seen.iter().cloned().collect();
+            let half = entries.len() / 2;
+            for entry in &entries[..half] {
+                seen.remove(entry);
+            }
+            tracing::warn!("governance_seen exceeded 10k entries, evicted {} oldest", half);
         }
         seen.insert(seal.decision_id.clone());
     }
@@ -357,6 +365,10 @@ async fn api_generate_scenarios(
     };
 
     let symbol = payload.get("symbol").and_then(|s| s.as_str()).unwrap_or("UNKNOWN");
+    // Validate symbol: alphanumeric with dots/hyphens, max 20 chars
+    if symbol.len() > 20 || !symbol.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '.') {
+        return (StatusCode::BAD_REQUEST, axum::Json(serde_json::json!({"error": "invalid symbol"})));
+    }
     let values: Vec<f64> = payload
         .get("values")
         .and_then(|v| v.as_array())
@@ -724,11 +736,12 @@ async fn tunnel_loop(project_dir: std::path::PathBuf, ntfy_topic: String) {
         let tunnel_log = project_dir.join("tunnel.log");
         let child = tokio::process::Command::new(&cloudflared)
             .args(["tunnel", "--url", "http://localhost:5555"])
-            .stdout(match std::fs::File::create(&tunnel_log) {
+            .stdout(std::process::Stdio::null())
+            // cloudflared writes tunnel URL and status to stderr, not stdout
+            .stderr(match std::fs::File::create(&tunnel_log) {
                 Ok(f) => f,
                 Err(e) => { tracing::error!("Failed to create tunnel log: {e}"); tokio::time::sleep(std::time::Duration::from_secs(30)).await; continue; }
             })
-            .stderr(std::process::Stdio::null())
             .spawn();
         let mut child = match child {
             Ok(c) => c,
