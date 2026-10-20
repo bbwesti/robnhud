@@ -20,7 +20,7 @@
   <div id="glyph-layer" aria-hidden="true"></div>
 
   <!-- ── Error Banner ───────────────────────────────────── -->
-  <div id="error-banner" aria-live="assertive"></div>
+  <div id="error-banner" role="alert" aria-live="assertive"></div>
 
   <!-- ── Header ─────────────────────────────────────────── -->
   <header id="header">
@@ -95,7 +95,7 @@
               <button class="sort-btn" data-sort="price">PRICE</button>
               <button class="sort-btn" data-sort="details">DETAILS</button>
             </div>
-            <div class="holdings-list" id="holdings-list">
+            <div class="holdings-list" id="holdings-list" role="region" aria-label="Holdings list" tabindex="0">
               <div class="holding-row shimmer" style="height:52px;border:none;"></div>
               <div class="holding-row shimmer" style="height:52px;border:none;margin-top:4px;"></div>
             </div>
@@ -239,7 +239,7 @@
               <div class="qb-metric"><span class="qb-label">HECKE PAIRS</span><span class="qb-value" id="qb-hecke-pairs">&mdash;</span></div>
             </div>
             <!-- Agent 9: wrap qb-table in .qb-table-wrap for horizontal scroll -->
-            <div class="qb-table-wrap">
+            <div class="qb-table-wrap" role="region" aria-label="Asset analysis table" tabindex="0">
               <table class="qb-table" id="qb-asset-table">
                 <thead><tr><th>ASSET</th><th>PARTITION VOL</th><th>ENTROPY [L, U]</th><th>COMPLEXITY</th><th>RAMANUJAN</th></tr></thead>
                 <tbody id="qb-asset-tbody"></tbody>
@@ -276,15 +276,15 @@
                   <input type="text" id="gov-action" required placeholder="e.g. rebalance_portfolio">
                 </div>
                 <div class="gov-field">
-                  <label for="gov-signer">Signer</label>
-                  <input type="text" id="gov-signer" required placeholder="e.g. phaeron_szarekh">
+                  <label for="gov-signer">Proposal</label>
+                  <input type="text" id="gov-signer" required placeholder="e.g. Increase XRP allocation by 10%">
                 </div>
                 <div class="gov-field">
                   <label for="gov-quorum">Quorum</label>
                   <input type="number" id="gov-quorum" required min="1" max="99" value="3">
                 </div>
                 <div class="gov-field">
-                  <label for="gov-threshold">Threshold</label>
+                  <label for="gov-threshold">Quorum Required</label>
                   <input type="number" id="gov-threshold" required min="1" max="99" value="2">
                 </div>
                 <div class="gov-field">
@@ -292,8 +292,8 @@
                   <input type="text" id="gov-seal-hash" required placeholder="blake3 hex digest">
                 </div>
                 <div class="gov-field gov-field-wide">
-                  <label for="gov-signers-list">Signers (comma-separated)</label>
-                  <input type="text" id="gov-signers-list" required placeholder="signer_a, signer_b, signer_c">
+                  <label for="gov-signers-list">Signers (comma-separated, informational)</label>
+                  <input type="text" id="gov-signers-list" placeholder="signer_a, signer_b, signer_c">
                 </div>
               </div>
               <button type="submit" class="ms-button gov-submit-btn">
@@ -302,7 +302,7 @@
             </form>
 
             <!-- Agent 10: aria-live on gov-log -->
-            <div class="gov-log" id="gov-log" aria-live="polite">
+            <div class="gov-log" id="gov-log" role="log" aria-label="Governance verification log" aria-live="polite" tabindex="0">
               <div class="empty-state">No governance decisions verified this session</div>
             </div>
           </div>

@@ -8,6 +8,15 @@ use lettre::{Message, SmtpTransport, Transport};
 use vigil_core::{Holding, NewsItem, PriceSnapshot};
 use vigil_analysis::{ScenarioBands, Regime};
 
+/// Escape HTML special characters to prevent XSS / injection in digest emails.
+fn escape_html(s: &str) -> String {
+    s.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+        .replace('\'', "&#x27;")
+}
+
 pub fn analyze_relevance(title: &str, holdings: &[Holding]) -> Option<String> {
     let title_upper = title.to_uppercase();
     let mentioned: Vec<&str> = holdings.iter()
@@ -60,6 +69,7 @@ pub fn build_digest_html(
             let pl = value - cost;
             let change_color = if p.change_pct >= 0.0 { "#00ff66" } else { "#ff3333" };
             let pl_color = if pl >= 0.0 { "#00ff66" } else { "#ff3333" };
+            // BUG FIX: escape symbol to prevent HTML injection
             html.push_str(&format!(
                 r#"<tr style="border-bottom:1px solid #1a1a1a;font-size:12px;">
                 <td style="color:#00cc55;padding:4px 0;">{}</td>
@@ -68,7 +78,7 @@ pub fn build_digest_html(
                 <td>{:.4}</td>
                 <td>${:.2}</td>
                 <td style="color:{};">{:+.2}</td></tr>"#,
-                h.symbol, p.price, change_color, p.change_pct, h.qty, value, pl_color, pl
+                escape_html(&h.symbol), p.price, change_color, p.change_pct, h.qty, value, pl_color, pl
             ));
         }
     }
@@ -91,11 +101,12 @@ pub fn build_digest_html(
     ));
     html.push_str(r#"<h2 style="color:#8b7d3c;font-size:14px;letter-spacing:3px;margin-top:20px;">SCENARIO BANDS</h2>"#);
     for sb in scenarios {
-        html.push_str(&format!(r#"<p style="color:#00cc55;">{}</p>"#, sb.symbol));
+        // BUG FIX: escape symbol to prevent HTML injection
+        html.push_str(&format!(r#"<p style="color:#00cc55;">{}</p>"#, escape_html(&sb.symbol)));
         for band in &sb.bands {
             html.push_str(&format!(
                 r#"<p style="font-size:11px;color:#808080;">  {} — ${:.4} to ${:.4} ({})</p>"#,
-                band.label, band.range.0, band.range.1, band.probability
+                escape_html(&band.label), band.range.0, band.range.1, escape_html(&band.probability)
             ));
         }
     }
@@ -103,10 +114,11 @@ pub fn build_digest_html(
     html.push_str(r#"<h2 style="color:#8b7d3c;font-size:14px;letter-spacing:3px;margin-top:20px;">NEWS & HOW IT AFFECTS YOUR PORTFOLIO</h2>"#);
     for item in news {
         let relevance = analyze_relevance(&item.title, holdings).unwrap_or_default();
+        // BUG FIX: escape news title and relevance to prevent HTML injection
         html.push_str(&format!(
             r#"<p style="font-size:12px;border-bottom:1px solid #1a1a1a;padding:6px 0;">
             {} <br><span style="color:#00cc55;font-size:10px;">{}</span></p>"#,
-            item.title, relevance
+            escape_html(&item.title), escape_html(&relevance)
         ));
     }
     html.push_str(&format!(
@@ -144,6 +156,14 @@ pub fn send_email(from: &str, to: &str, app_password: &str, subject: &str, html_
 mod tests {
     use super::*;
     use vigil_core::AssetClass;
+
+    #[test]
+    fn test_escape_html() {
+        assert_eq!(escape_html("<script>alert('xss')</script>"), "&lt;script&gt;alert(&#x27;xss&#x27;)&lt;/script&gt;");
+        assert_eq!(escape_html("BTC & ETH"), "BTC &amp; ETH");
+        assert_eq!(escape_html("\"quoted\""), "&quot;quoted&quot;");
+        assert_eq!(escape_html("normal text"), "normal text");
+    }
 
     #[test]
     fn test_relevance_direct_mention() {

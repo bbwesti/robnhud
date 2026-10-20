@@ -26,6 +26,11 @@ fn coingecko_id(symbol: &str) -> Option<&'static str> {
     }
 }
 
+/// Round an f64 to 2 decimal places.
+fn round2(v: f64) -> f64 {
+    (v * 100.0).round() / 100.0
+}
+
 pub async fn fetch_crypto_prices(symbols: &[String]) -> HashMap<String, Price> {
     let mut id_to_symbol: HashMap<String, String> = HashMap::new();
     let mut ids = Vec::new();
@@ -58,9 +63,11 @@ pub async fn fetch_crypto_prices(symbols: &[String]) -> HashMap<String, Price> {
         for (cg_id, info) in obj {
             if let Some(symbol) = id_to_symbol.get(cg_id) {
                 let price = info.get("usd").and_then(|v| v.as_f64()).unwrap_or(0.0);
+                // CoinGecko's usd_24h_change is already a percentage (e.g. 2.5 = 2.5%).
+                // round2() rounds to 2 decimal places — no conversion needed.
                 let change = info.get("usd_24h_change").and_then(|v| v.as_f64()).unwrap_or(0.0);
                 prices.insert(symbol.clone(), Price {
-                    symbol: symbol.clone(), price, change_pct: (change * 100.0).round() / 100.0, timestamp: Utc::now(),
+                    symbol: symbol.clone(), price, change_pct: round2(change), timestamp: Utc::now(),
                 });
             }
         }
@@ -79,14 +86,25 @@ pub async fn fetch_finnhub_quote(symbol: &str, api_key: &str) -> Option<Price> {
     let data: serde_json::Value = resp.json().await.ok()?;
     let current = data.get("c").and_then(|v| v.as_f64()).unwrap_or(0.0);
     if current == 0.0 { return None; }
+    // Finnhub's "dp" is already a percentage (e.g. 1.23 = 1.23%).
+    // round2() rounds to 2 decimal places — no conversion needed.
     let change_pct = data.get("dp").and_then(|v| v.as_f64()).unwrap_or(0.0);
-    Some(Price { symbol: symbol.to_string(), price: current, change_pct: (change_pct * 100.0).round() / 100.0, timestamp: Utc::now() })
+    Some(Price { symbol: symbol.to_string(), price: current, change_pct: round2(change_pct), timestamp: Utc::now() })
 }
 
 pub async fn fetch_vix(api_key: &str) -> f64 {
+    // Try the actual VIX index on Finnhub
     if let Some(price) = fetch_finnhub_quote("VIX", api_key).await { return price.price; }
-    if let Some(price) = fetch_finnhub_quote("VIXY", api_key).await { return price.price; }
-    25.0
+    // BUG FIX: VIXY is a VIX *futures* ETF — its share price (~$15-25) is NOT the VIX value.
+    // Use VIXY's daily percent change to estimate VIX from a neutral baseline instead.
+    if let Some(vixy) = fetch_finnhub_quote("VIXY", api_key).await {
+        let baseline_vix = 20.0;
+        let estimated = baseline_vix * (1.0 + vixy.change_pct / 100.0);
+        // Clamp to a sane range — VIX cannot be negative or astronomically high
+        return estimated.clamp(9.0, 90.0);
+    }
+    // Neutral default — previous hardcoded 25.0 was biased toward Transition/Bear regime
+    20.0
 }
 
 pub async fn fetch_index_prices(indices: &[IndexConfig], api_key: &str) -> HashMap<String, Price> {
@@ -158,6 +176,14 @@ mod tests {
         assert_eq!(coingecko_id("DOGE"), Some("dogecoin"));
         assert_eq!(coingecko_id("BTC"), Some("bitcoin"));
         assert_eq!(coingecko_id("UNKNOWN"), None);
+    }
+
+    #[test]
+    fn test_round2() {
+        assert_eq!(round2(2.5432), 2.54);
+        assert_eq!(round2(-1.999), -2.0);
+        assert_eq!(round2(0.0), 0.0);
+        assert_eq!(round2(100.005), 100.01);
     }
 
     #[test]

@@ -34,6 +34,7 @@ let holdingsSortKey   = 'value';
 const HISTORY_INTERVAL_MS = 300_000; // 5 minutes
 let govVerifiedCount = 0;
 let govReplayCount = 0;
+let flashMsgTimerId = null;
 
 // ── Connection Health State (Agent 2 — backoff + Agent 11 — visibility) ──
 let lastSuccessfulFetch   = null;
@@ -420,13 +421,20 @@ function flashMessage(msg, type) {
   type = type || 'error';
   const el = document.getElementById('error-banner');
   if (!el) return;
+
+  // Cancel any pending auto-dismiss so it cannot hide a newer message
+  if (flashMsgTimerId !== null) {
+    clearTimeout(flashMsgTimerId);
+    flashMsgTimerId = null;
+  }
+
   el.textContent = msg;
   el.className = 'error-banner visible' + (type === 'info' ? ' info' : '');
   el.style.display = 'block';
 
   // Info messages auto-dismiss. Error banners persist until recovery (Agent 2)
   if (type === 'info') {
-    setTimeout(function() { el.style.display = 'none'; el.className = 'error-banner'; }, 3000);
+    flashMsgTimerId = setTimeout(function() { el.style.display = 'none'; el.className = 'error-banner'; flashMsgTimerId = null; }, 3000);
   }
 }
 
@@ -807,24 +815,26 @@ async function fetchQuantaBeta() {
         for (var ai = 0; ai < data.assets.length; ai++) {
             var asset = data.assets[ai];
             var pv = asset.partition_volatility || [];
-            var lastVol = pv.length > 0 ? pv[pv.length - 1].toFixed(4) : '\u2014';
-            var cb = asset.complexity_bound || '\u2014';
+            var lastVolRaw = pv.length > 0 ? Number(pv[pv.length - 1]) : NaN;
+            var lastVol = isFinite(lastVolRaw) ? lastVolRaw.toFixed(4) : '\u2014';
+            var cb = String(asset.complexity_bound != null ? asset.complexity_bound : '\u2014');
             var complexityDisplay = cb.length > 10 ? cb.substring(0, 8) + '...' : cb;
             var tr = document.createElement('tr');
             tr.innerHTML =
                 '<td>' + escapeHtml(asset.symbol) + '</td>' +
                 '<td>' + escapeHtml(lastVol) + '</td>' +
-                '<td>[' + escapeHtml((asset.entropy_interval && asset.entropy_interval[0] != null) ? asset.entropy_interval[0].toFixed(3) : '\u2014') + ', ' + escapeHtml((asset.entropy_interval && asset.entropy_interval[1] != null) ? asset.entropy_interval[1].toFixed(3) : '\u2014') + ']</td>' +
+                '<td>[' + escapeHtml((asset.entropy_interval && isFinite(Number(asset.entropy_interval[0]))) ? Number(asset.entropy_interval[0]).toFixed(3) : '\u2014') + ', ' + escapeHtml((asset.entropy_interval && isFinite(Number(asset.entropy_interval[1]))) ? Number(asset.entropy_interval[1]).toFixed(3) : '\u2014') + ']</td>' +
                 '<td>' + escapeHtml(complexityDisplay) + '</td>' +
                 '<td class="' + (asset.ramanujan_congruence_holds ? 'qb-pass' : 'qb-fail') + '">' + (asset.ramanujan_congruence_holds ? 'PASS' : 'FAIL') + '</td>';
             tbody.appendChild(tr);
         }
 
+        var crossSection = document.getElementById('qb-cross-section');
         if (Array.isArray(data.cross_correlations) && data.cross_correlations.length > 0) {
-            var crossSection = document.getElementById('qb-cross-section');
             if (crossSection) crossSection.style.display = 'block';
             const crossList = document.getElementById('qb-cross-list');
             if (!crossList) return;
+            crossList.innerHTML = '';
             for (var ci = 0; ci < data.cross_correlations.length; ci++) {
                 var cc = data.cross_correlations[ci];
                 var div = document.createElement('div');
@@ -834,6 +844,10 @@ async function fetchQuantaBeta() {
                     '<span>T_' + escapeHtml(String(cc.level || 0)) + ': ' + escapeHtml(typeof cc.hecke_correlation === 'number' ? cc.hecke_correlation.toFixed(6) : '\u2014') + '</span>';
                 crossList.appendChild(div);
             }
+        } else {
+            if (crossSection) crossSection.style.display = 'none';
+            var crossList = document.getElementById('qb-cross-list');
+            if (crossList) crossList.innerHTML = '';
         }
     } catch (e) {
         console.warn('QuantaBeta fetch failed:', e);
@@ -853,11 +867,10 @@ function initGovernanceForm() {
     var seal = {
       decision_id: document.getElementById('gov-decision-id').value.trim(),
       action: document.getElementById('gov-action').value.trim(),
-      proposer: document.getElementById('gov-signer').value.trim(),
-      approvers: document.getElementById('gov-signers-list').value.split(',').map(function(s) { return s.trim(); }).filter(Boolean),
+      proposal: document.getElementById('gov-signer').value.trim(),
       seal_hash: document.getElementById('gov-seal-hash').value.trim(),
-      timestamp: new Date().toISOString(),
-      quorum_threshold: parseInt(document.getElementById('gov-threshold').value, 10) || 2,
+      sealed_at: new Date().toISOString(),
+      quorum_required: parseInt(document.getElementById('gov-threshold').value, 10) || 2,
       quorum: parseInt(document.getElementById('gov-quorum').value, 10) || 3,
     };
     verifyGovernanceSeal(seal);
@@ -922,6 +935,7 @@ async function verifyGovernanceSeal(seal) {
         return result;
     } catch (e) {
         console.warn('Governance verify failed:', e);
+        flashError('Governance: network error \u2014 ' + e.message);
         return null;
     }
 }
@@ -1254,6 +1268,9 @@ function initNavigation() {
 }
 
 function switchSection(name, fromPopstate) {
+  // Sanitize section name: allow only alphanumeric, hyphen, underscore
+  if (!name || !/^[\w-]+$/.test(name)) return;
+
   var tabs = document.querySelectorAll('.nav-tab');
   var sections = document.querySelectorAll('.app-section');
 
@@ -1297,7 +1314,7 @@ function initMarketScope() {
   const valInput = document.getElementById('ms-values');
   if (valInput) {
     valInput.addEventListener('keydown', function(e) {
-      if (e.key === 'Enter') generateMarketScopeScenarios();
+      if (e.key === 'Enter' && !btn.disabled) generateMarketScopeScenarios();
     });
   }
 

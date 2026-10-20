@@ -449,13 +449,16 @@ async fn scheduler_loop(state: AppState) {
     loop {
         cycle_count += 1;
 
+        // ── 1. Read holdings (short lock) ──────────────────────────────────
         let holdings = {
             let db = state.db.lock().await;
             vigil_core::db::get_holdings(&db).unwrap_or_default()
         };
 
+        // ── 2. Fetch prices (no lock held — network I/O) ──────────────────
         let snapshot = vigil_ingestor::fetch_all_prices(&holdings, &state.indices, &state.config.finnhub_key).await;
 
+        // ── 3. WORM append + verify (worm_db lock only) ───────────────────
         let (valid, count, sigs, last) = {
             let wdb = state.worm_db.lock().await;
             if let Err(e) = vigil_worm::append_signed(&wdb, "price_fetch", serde_json::json!({"hash": &snapshot.data_hash}), &state.signing_key) {
@@ -480,6 +483,7 @@ async fn scheduler_loop(state: AppState) {
             cache.last_type = last.first().map(|b| b.block_type.clone()).unwrap_or_default();
         }
 
+        // ── 4. Check alerts (short lock) ──────────────────────────────────
         let fired = {
             let db = state.db.lock().await;
             vigil_alerts::check_alerts(&db, &snapshot, &holdings, &alert_config)
@@ -497,7 +501,7 @@ async fn scheduler_loop(state: AppState) {
             vigil_alerts::send_ntfy(&state.config.ntfy_topic, alert).await;
         }
 
-        // Store price history for charts
+        // ── 5. Store price history + prune (single short lock) ────────────
         {
             let db = state.db.lock().await;
             for (symbol, price) in &snapshot.prices {
@@ -506,51 +510,82 @@ async fn scheduler_loop(state: AppState) {
                     rusqlite::params![symbol, price.price, price.change_pct],
                 ).ok();
             }
-            // Prune old history — keep most recent 10000 rows to prevent unbounded growth
+            // BUG FIX: Prune old history using a threshold id instead of NOT IN subquery.
+            // The previous `DELETE WHERE id NOT IN (SELECT ... LIMIT 10000)` does a full
+            // table scan on large tables.  This approach finds the cutoff id first, then
+            // deletes everything below it — O(log n) with the index on id.
             if cycle_count % 100 == 0 {
-                db.execute(
-                    "DELETE FROM price_history WHERE id NOT IN (SELECT id FROM price_history ORDER BY timestamp DESC LIMIT 10000)",
+                let cutoff_id: Option<i64> = db.query_row(
+                    "SELECT id FROM price_history ORDER BY id DESC LIMIT 1 OFFSET 10000",
                     [],
+                    |row| row.get(0),
                 ).ok();
+                if let Some(cutoff) = cutoff_id {
+                    db.execute(
+                        "DELETE FROM price_history WHERE id <= ?1",
+                        rusqlite::params![cutoff],
+                    ).ok();
+                }
             }
         }
 
-        // Market regime detection
+        // ── 6. Market regime detection ────────────────────────────────────
         {
             let vix = vigil_ingestor::fetch_vix(&state.config.finnhub_key).await;
 
-            // Use SPX (S&P 500) price history for SMA calculations
-            let spx_prices: Vec<f64> = {
+            // BUG FIX: Fetch all price histories for holdings AND SPX in a single
+            // db lock acquisition, then release the lock before doing computation.
+            // Previously, breadth calculation held the lock and ran O(n) queries.
+            let (spx_prices, holding_prices) = {
                 let db = state.db.lock().await;
-                db.prepare("SELECT price FROM price_history WHERE symbol = 'SPX' ORDER BY timestamp ASC")
+
+                // SPX prices for SMA calculation
+                let spx: Vec<f64> = db.prepare("SELECT price FROM price_history WHERE symbol = 'SPX' ORDER BY timestamp ASC")
                     .and_then(|mut stmt| {
                         let rows = stmt.query_map([], |row| row.get::<_, f64>(0))?;
                         Ok(rows.filter_map(|r| r.ok()).collect())
                     })
-                    .unwrap_or_default()
+                    .unwrap_or_default();
+
+                // BUG FIX: Fetch all holding price histories in a single query
+                // instead of one query per holding (was O(n) queries under lock).
+                let mut hp: std::collections::HashMap<String, Vec<f64>> = std::collections::HashMap::new();
+                if !holdings.is_empty() {
+                    // Build a single query with all symbols to avoid per-holding queries
+                    let placeholders: Vec<String> = (1..=holdings.len()).map(|i| format!("?{i}")).collect();
+                    let sql = format!(
+                        "SELECT symbol, price FROM price_history WHERE symbol IN ({}) ORDER BY timestamp ASC",
+                        placeholders.join(",")
+                    );
+                    if let Ok(mut stmt) = db.prepare(&sql) {
+                        let params: Vec<&dyn rusqlite::ToSql> = holdings.iter().map(|h| &h.symbol as &dyn rusqlite::ToSql).collect();
+                        if let Ok(rows) = stmt.query_map(params.as_slice(), |row| {
+                            Ok((row.get::<_, String>(0)?, row.get::<_, f64>(1)?))
+                        }) {
+                            for r in rows.flatten() {
+                                hp.entry(r.0).or_default().push(r.1);
+                            }
+                        }
+                    }
+                }
+                (spx, hp)
             };
+            // db lock is released here — all computation below is lock-free
 
             let sma_50 = vigil_analysis::calculate_sma(&spx_prices, 50);
             let sma_200 = vigil_analysis::calculate_sma(&spx_prices, 200);
 
             // Calculate breadth: fraction of holdings whose current price > their own SMA-50
             let breadth = {
-                let db = state.db.lock().await;
                 let mut above = 0usize;
                 let total = holdings.len();
                 for h in &holdings {
-                    let h_prices: Vec<f64> = db.prepare(
-                        "SELECT price FROM price_history WHERE symbol = ?1 ORDER BY timestamp ASC"
-                    )
-                        .and_then(|mut stmt| {
-                            let rows = stmt.query_map(rusqlite::params![h.symbol], |row| row.get::<_, f64>(0))?;
-                            Ok(rows.filter_map(|r| r.ok()).collect())
-                        })
-                        .unwrap_or_default();
-                    if let Some(h_sma) = vigil_analysis::calculate_sma(&h_prices, 50) {
-                        let current = snapshot.prices.get(&h.symbol).map(|p| p.price).unwrap_or(0.0);
-                        if current > h_sma {
-                            above += 1;
+                    if let Some(h_prices) = holding_prices.get(&h.symbol) {
+                        if let Some(h_sma) = vigil_analysis::calculate_sma(h_prices, 50) {
+                            let current = snapshot.prices.get(&h.symbol).map(|p| p.price).unwrap_or(0.0);
+                            if current > h_sma {
+                                above += 1;
+                            }
                         }
                     }
                 }
@@ -589,8 +624,10 @@ async fn scheduler_loop(state: AppState) {
             *state.latest_regime.write().await = regime;
         }
 
-        // Scenario band generation
+        // ── 7. Scenario band generation ───────────────────────────────────
         {
+            // BUG FIX: Reuse holding_prices from step 6 would be ideal, but since
+            // we're in a different scope, fetch once more with a single lock acquisition.
             let scenarios = {
                 let db = state.db.lock().await;
                 let mut s = Vec::new();
@@ -612,7 +649,7 @@ async fn scheduler_loop(state: AppState) {
             *state.latest_scenarios.write().await = scenarios;
         }
 
-        // QuantaBeta analysis — run every 10 cycles to avoid overhead
+        // ── 8. QuantaBeta analysis — run every 10 cycles ─────────────────
         if cycle_count % 10 == 1 {
             let portfolio: Vec<(String, Vec<f64>)> = {
                 let db = state.db.lock().await;
