@@ -106,8 +106,11 @@ pub async fn send_ntfy(topic: &str, alert: &FiredAlert) {
 }
 
 pub fn get_alert_states(conn: &Connection, cooldown_minutes: i64) -> Vec<serde_json::Value> {
-    let mut stmt = conn.prepare("SELECT symbol, baseline, last_fired, last_direction FROM alert_state").unwrap();
-    stmt.query_map([], |row| {
+    let mut stmt = match conn.prepare("SELECT symbol, baseline, last_fired, last_direction FROM alert_state") {
+        Ok(s) => s,
+        Err(e) => { tracing::warn!("Failed to prepare alert_state query: {e}"); return Vec::new(); }
+    };
+    let result = stmt.query_map([], |row| {
         let symbol: String = row.get(0)?;
         let baseline: f64 = row.get(1)?;
         let last_fired: Option<String> = row.get(2)?;
@@ -129,7 +132,11 @@ pub fn get_alert_states(conn: &Connection, cooldown_minutes: i64) -> Vec<serde_j
             "symbol": symbol, "baseline": baseline, "last_fired": last_fired, "last_direction": last_direction,
             "status": status,
         }))
-    }).unwrap().filter_map(|r| r.ok()).collect()
+    });
+    match result {
+        Ok(rows) => rows.filter_map(|r| r.ok()).collect(),
+        Err(e) => { tracing::warn!("Failed to query alert states: {e}"); Vec::new() }
+    }
 }
 
 #[cfg(test)]

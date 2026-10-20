@@ -116,7 +116,7 @@ async fn api_data(State(state): State<AppState>) -> axum::Json<serde_json::Value
         "portfolio": {
             "total_value": (total_value * 100.0).round() / 100.0,
             "total_pl": (total_pl * 100.0).round() / 100.0,
-            "total_pl_pct": (total_pl_pct * 10.0).round() / 10.0,
+            "total_pl_pct": (total_pl_pct * 100.0).round() / 100.0,
         },
         "holdings": holdings_json,
         "indices": indices_json,
@@ -196,14 +196,26 @@ async fn api_sync(
         let qty: f64 = pos.get("qty").and_then(|v| v.as_f64()).unwrap_or(0.0);
         let avg_cost: f64 = pos.get("avg_cost").and_then(|v| v.as_f64()).unwrap_or(0.0);
 
-        if symbol.is_empty() || qty == 0.0 {
+        // Validate symbol: non-empty, alphanumeric, max 20 chars
+        if symbol.is_empty() || symbol.len() > 20 || !symbol.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '.') {
+            continue;
+        }
+        // Validate asset_class
+        if asset_class.len() > 20 || !asset_class.chars().all(|c| c.is_alphanumeric()) {
+            continue;
+        }
+        // Skip zero or negative quantities
+        if qty <= 0.0 || avg_cost < 0.0 {
             continue;
         }
 
-        db.execute(
+        if let Err(e) = db.execute(
             "INSERT OR REPLACE INTO holdings (symbol, asset_class, qty, avg_cost) VALUES (?1, ?2, ?3, ?4)",
             rusqlite::params![symbol, asset_class, qty, avg_cost],
-        ).ok();
+        ) {
+            tracing::warn!("Failed to sync position {symbol}: {e}");
+            continue;
+        }
         synced += 1;
     }
 
@@ -236,7 +248,13 @@ async fn api_delete_position(
     }
 
     let db = state.db.lock().await;
-    let deleted = db.execute("DELETE FROM holdings WHERE symbol = ?1", [&symbol]).unwrap_or(0);
+    let deleted = match db.execute("DELETE FROM holdings WHERE symbol = ?1", [&symbol]) {
+        Ok(n) => n,
+        Err(e) => {
+            tracing::error!("Failed to delete position {symbol}: {e}");
+            return (StatusCode::INTERNAL_SERVER_ERROR, axum::Json(serde_json::json!({"error": "database error"})));
+        }
+    };
 
     if deleted == 0 {
         return (StatusCode::NOT_FOUND, axum::Json(serde_json::json!({"error": "position not found", "symbol": symbol})));
@@ -274,8 +292,10 @@ async fn api_governance_verify(
         Err(e) => return (StatusCode::BAD_REQUEST, axum::Json(serde_json::json!({"error": format!("invalid seal payload: {e}")}))),
     };
 
-    let mut seen = state.governance_seen.write().await;
-    let result = vigil_governance::verify_seal(&seal, &seen);
+    let result = {
+        let seen = state.governance_seen.read().await;
+        vigil_governance::verify_seal(&seal, &seen)
+    };
 
     // Log to WORM chain
     {
@@ -296,6 +316,12 @@ async fn api_governance_verify(
 
     // If valid and approved, mark as seen for replay protection
     if result.seal_valid && result.quorum_met && !result.is_replay {
+        let mut seen = state.governance_seen.write().await;
+        // Cap the seen set to prevent unbounded memory growth
+        if seen.len() > 10_000 {
+            seen.clear();
+            tracing::warn!("governance_seen exceeded 10k entries, cleared to prevent memory leak");
+        }
         seen.insert(seal.decision_id.clone());
     }
 
@@ -634,7 +660,9 @@ async fn scheduler_loop(state: AppState) {
                 // Cache report in DB
                 {
                     let db = state.db.lock().await;
-                    quantabeta_bridge::cache::store_report(&db, &report, &report.report_hash).ok();
+                    if let Err(e) = quantabeta_bridge::cache::store_report(&db, &report, &report.report_hash) {
+                        tracing::warn!("Failed to cache QuantaBeta report: {e}");
+                    }
                 }
 
                 *state.latest_quantabeta.write().await = Some(report);

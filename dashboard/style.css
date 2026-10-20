@@ -351,6 +351,7 @@ h1 { margin: 0; } /* Agent 10 */
   padding: 3px 10px; border: 1px solid var(--border);
   border-radius: 3px;
 }
+.panel-body { position: relative; }
 
 /* ═══════════════════════════════════════════════════════════
    COMMAND SECTION
@@ -763,8 +764,13 @@ h1 { margin: 0; } /* Agent 10 */
   padding-bottom: 14px;
   border-bottom: 1px solid var(--border);
 }
+.gov-form-grid {
+  grid-column: 1 / -1;
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
 .gov-form .gov-field { display: flex; flex-direction: column; gap: 4px; }
-.gov-form .gov-field.full-width { grid-column: 1 / -1; }
+.gov-form .gov-field.gov-field-wide { grid-column: 1 / -1; }
 .gov-form .gov-field label {
   font-family: var(--font-label); font-size: 9px;
   color: var(--text-muted); letter-spacing: 1px; text-transform: uppercase;
@@ -779,7 +785,7 @@ h1 { margin: 0; } /* Agent 10 */
   border-color: var(--gov-blue);
   box-shadow: 0 0 12px var(--gov-glow);
 }
-.gov-form .gov-submit {
+.gov-form .gov-submit-btn {
   grid-column: 1 / -1;
   background: rgba(90,154,255,0.06);
   border: 1px solid var(--gov-blue);
@@ -790,7 +796,7 @@ h1 { margin: 0; } /* Agent 10 */
   border-radius: 3px; transition: all 0.2s;
   min-height: 44px;
 }
-.gov-form .gov-submit:hover {
+.gov-form .gov-submit-btn:hover {
   background: rgba(90,154,255,0.12);
   box-shadow: 0 0 16px var(--gov-glow);
 }
@@ -864,6 +870,7 @@ h1 { margin: 0; } /* Agent 10 */
   .vault-value { font-size: 22px; }
   .ms-title { font-size: 16px; letter-spacing: 2px; }
   .gov-form { grid-template-columns: 1fr; }
+  .gov-form-grid { grid-template-columns: 1fr; }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -143,10 +143,12 @@ pub fn append_signed(
 }
 
 pub fn verify(conn: &Connection) -> Result<(bool, u64), rusqlite::Error> {
-    let mut stmt = conn.prepare("SELECT idx, timestamp, prev_hash, block_type, data, hash, COALESCE(signature,'') as signature, COALESCE(pubkey,'') as pubkey FROM worm_chain ORDER BY idx")?;
-    let blocks: Vec<WormBlock> = stmt
+    migrate_signed_columns(conn)?;
+    let mut stmt = conn.prepare("SELECT idx, timestamp, prev_hash, block_type, data, hash, COALESCE(signature,'') as signature, COALESCE(pubkey,'') as pubkey, COALESCE(hash_algo,'sha256') as hash_algo FROM worm_chain ORDER BY idx")?;
+    let blocks: Vec<(WormBlock, String)> = stmt
         .query_map([], |row| {
-            Ok(WormBlock {
+            let hash_algo: String = row.get(8)?;
+            Ok((WormBlock {
                 idx: row.get::<_, i64>(0)? as u64,
                 timestamp: DateTime::parse_from_rfc3339(&row.get::<_, String>(1)?).unwrap_or_default().with_timezone(&Utc),
                 prev_hash: row.get(2)?,
@@ -155,15 +157,19 @@ pub fn verify(conn: &Connection) -> Result<(bool, u64), rusqlite::Error> {
                 hash: row.get(5)?,
                 signature: row.get(6)?,
                 pubkey: row.get(7)?,
-            })
+            }, hash_algo))
         })?
         .collect::<Result<Vec<_>, _>>()?;
     let count = blocks.len() as u64;
     for i in 1..blocks.len() {
-        let block = &blocks[i];
-        let prev = &blocks[i - 1];
+        let (block, algo) = &blocks[i];
+        let (prev, _) = &blocks[i - 1];
         if block.prev_hash != prev.hash { return Ok((false, count)); }
-        let computed = compute_hash(block.idx, &block.prev_hash, &block.block_type, &block.data);
+        let computed = if algo == "blake3" {
+            compute_blake3_hash(block.idx, &block.prev_hash, &block.block_type, &block.data)
+        } else {
+            compute_hash(block.idx, &block.prev_hash, &block.block_type, &block.data)
+        };
         if computed != block.hash { return Ok((false, count)); }
     }
     Ok((true, count))

@@ -22,7 +22,7 @@ const GLYPH_COUNT         = 18;
 
 // ── State ─────────────────────────────────────────────────────
 let countdownSecs     = 60;
-let countdownTimer    = null;
+let countdownTimerId  = null;
 let particles         = [];
 let canvas            = null;
 let ctx               = null;
@@ -39,6 +39,7 @@ let govReplayCount = 0;
 let lastSuccessfulFetch   = null;
 let fetchDataInFlight     = false;
 let fetchQBInFlight       = false;
+let fetchHistoryInFlight  = false;
 let consecutiveFailures   = 0;
 const BACKOFF_BASE_MS     = REFRESH_INTERVAL_MS;
 const BACKOFF_MAX_MS      = 300_000;
@@ -93,7 +94,6 @@ const fmt = {
     if (!s) return '--';
     return s.length > 20 ? s.slice(0, 10) + '\u2026' + s.slice(-6) : s;
   },
-  sign: v => (Number(v) >= 0 ? '+' : '-'),
 };
 
 function signClass(v) {
@@ -223,6 +223,8 @@ function attachSparklineTooltip(canvasEl, prices, label) {
 
 // ── History Fetch ─────────────────────────────────────────────
 async function fetchHistory() {
+  if (fetchHistoryInFlight) return;
+  fetchHistoryInFlight = true;
   try {
     const res = await fetch('/api/history');
     if (!res.ok) return;
@@ -267,6 +269,8 @@ async function fetchHistory() {
     }
   } catch(err) {
     console.warn('[VIGIL] history fetch error:', err);
+  } finally {
+    fetchHistoryInFlight = false;
   }
 }
 
@@ -736,7 +740,7 @@ function updateScenarios(scenarios) {
           '<div class="band-val">' + escapeHtml(fmt.currency(lo)) + ' \u2014 ' + escapeHtml(fmt.currency(hi)) + '</div>' +
           '<div class="band-pct">' + escapeHtml(b.probability || '') + '</div>' +
         '</div>';
-    }).join('');
+    }).filter(Boolean).join('');
 
     item.innerHTML =
       '<div class="scenario-header">' +
@@ -773,57 +777,61 @@ async function fetchQuantaBeta() {
         const res = await fetch('/api/quantabeta');
         if (!res.ok) throw new Error('HTTP ' + res.status);
         const data = await res.json();
+        var qbStatus = document.getElementById('qb-status');
+        var qbRam = document.getElementById('qb-ramanujan');
+        var qbEntropy = document.getElementById('qb-entropy');
+        var qbHecke = document.getElementById('qb-hecke-pairs');
         if (data.status === 'no_data') {
-            document.getElementById('qb-status').textContent = 'STANDBY';
+            if (qbStatus) qbStatus.textContent = 'STANDBY';
             return;
         }
 
         if (!Array.isArray(data.assets) || data.assets.length === 0) {
-            document.getElementById('qb-status').textContent = 'NO ASSETS';
+            if (qbStatus) qbStatus.textContent = 'NO ASSETS';
             return;
         }
 
-        document.getElementById('qb-status').textContent = 'ACTIVE';
-        document.getElementById('qb-status').style.color = '#00ff66';
+        if (qbStatus) { qbStatus.textContent = 'ACTIVE'; qbStatus.style.color = '#00ff66'; }
 
         const allRam = data.assets.every(function(a) { return a.ramanujan_congruence_holds; });
-        document.getElementById('qb-ramanujan').textContent = allRam ? 'VERIFIED' : 'VIOLATED';
-        document.getElementById('qb-ramanujan').style.color = allRam ? '#00ff66' : '#ff3333';
+        if (qbRam) { qbRam.textContent = allRam ? 'VERIFIED' : 'VIOLATED'; qbRam.style.color = allRam ? '#00ff66' : '#ff3333'; }
 
-        const avgEntropy = data.assets.reduce(function(s, a) { return s + a.entropy_point; }, 0) / data.assets.length;
-        document.getElementById('qb-entropy').textContent = avgEntropy.toFixed(3);
+        const avgEntropy = data.assets.reduce(function(s, a) { return s + (a.entropy_point || 0); }, 0) / data.assets.length;
+        if (qbEntropy) qbEntropy.textContent = avgEntropy.toFixed(3);
 
-        document.getElementById('qb-hecke-pairs').textContent = data.cross_correlations.length;
+        if (qbHecke) qbHecke.textContent = (data.cross_correlations || []).length;
 
         const tbody = document.getElementById('qb-asset-tbody');
+        if (!tbody) return;
         tbody.innerHTML = '';
         for (var ai = 0; ai < data.assets.length; ai++) {
             var asset = data.assets[ai];
-            var lastVol = asset.partition_volatility.length > 0
-                ? asset.partition_volatility[asset.partition_volatility.length - 1].toFixed(4)
-                : '\u2014';
-            var complexityDisplay = asset.complexity_bound.length > 10 ? asset.complexity_bound.substring(0, 8) + '...' : asset.complexity_bound;
+            var pv = asset.partition_volatility || [];
+            var lastVol = pv.length > 0 ? pv[pv.length - 1].toFixed(4) : '\u2014';
+            var cb = asset.complexity_bound || '\u2014';
+            var complexityDisplay = cb.length > 10 ? cb.substring(0, 8) + '...' : cb;
             var tr = document.createElement('tr');
             tr.innerHTML =
                 '<td>' + escapeHtml(asset.symbol) + '</td>' +
                 '<td>' + escapeHtml(lastVol) + '</td>' +
-                '<td>[' + escapeHtml(asset.entropy_interval[0].toFixed(3)) + ', ' + escapeHtml(asset.entropy_interval[1].toFixed(3)) + ']</td>' +
+                '<td>[' + escapeHtml((asset.entropy_interval && asset.entropy_interval[0] != null) ? asset.entropy_interval[0].toFixed(3) : '\u2014') + ', ' + escapeHtml((asset.entropy_interval && asset.entropy_interval[1] != null) ? asset.entropy_interval[1].toFixed(3) : '\u2014') + ']</td>' +
                 '<td>' + escapeHtml(complexityDisplay) + '</td>' +
                 '<td class="' + (asset.ramanujan_congruence_holds ? 'qb-pass' : 'qb-fail') + '">' + (asset.ramanujan_congruence_holds ? 'PASS' : 'FAIL') + '</td>';
             tbody.appendChild(tr);
         }
 
         if (Array.isArray(data.cross_correlations) && data.cross_correlations.length > 0) {
-            document.getElementById('qb-cross-section').style.display = 'block';
+            var crossSection = document.getElementById('qb-cross-section');
+            if (crossSection) crossSection.style.display = 'block';
             const crossList = document.getElementById('qb-cross-list');
-            crossList.innerHTML = '';
+            if (!crossList) return;
             for (var ci = 0; ci < data.cross_correlations.length; ci++) {
                 var cc = data.cross_correlations[ci];
                 var div = document.createElement('div');
                 div.className = 'qb-cross-item';
                 div.innerHTML =
                     '<span>' + escapeHtml(cc.asset_a) + ' \u2194 ' + escapeHtml(cc.asset_b) + '</span>' +
-                    '<span>T_' + escapeHtml(String(cc.level)) + ': ' + escapeHtml(cc.hecke_correlation.toFixed(6)) + '</span>';
+                    '<span>T_' + escapeHtml(String(cc.level || 0)) + ': ' + escapeHtml(typeof cc.hecke_correlation === 'number' ? cc.hecke_correlation.toFixed(6) : '\u2014') + '</span>';
                 crossList.appendChild(div);
             }
         }
@@ -845,11 +853,12 @@ function initGovernanceForm() {
     var seal = {
       decision_id: document.getElementById('gov-decision-id').value.trim(),
       action: document.getElementById('gov-action').value.trim(),
-      proposer: document.getElementById('gov-proposer').value.trim(),
-      approvers: document.getElementById('gov-approvers').value.split(',').map(function(s) { return s.trim(); }).filter(Boolean),
+      proposer: document.getElementById('gov-signer').value.trim(),
+      approvers: document.getElementById('gov-signers-list').value.split(',').map(function(s) { return s.trim(); }).filter(Boolean),
       seal_hash: document.getElementById('gov-seal-hash').value.trim(),
-      timestamp: document.getElementById('gov-timestamp').value.trim() || new Date().toISOString(),
-      quorum_threshold: parseInt(document.getElementById('gov-quorum').value, 10) || 2,
+      timestamp: new Date().toISOString(),
+      quorum_threshold: parseInt(document.getElementById('gov-threshold').value, 10) || 2,
+      quorum: parseInt(document.getElementById('gov-quorum').value, 10) || 3,
     };
     verifyGovernanceSeal(seal);
   });
@@ -886,13 +895,14 @@ async function verifyGovernanceSeal(seal) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(seal),
         });
-        // Parse JSON first for better error messages (Agent 1)
-        const result = await res.json();
         if (!res.ok) {
-            console.warn('Governance verify error:', result.error || res.status);
-            flashError('Governance: ' + (result.error || 'HTTP ' + res.status));
+            var errMsg = 'HTTP ' + res.status;
+            try { var errData = await res.json(); errMsg = errData.error || errMsg; } catch(_) {}
+            console.warn('Governance verify error:', errMsg);
+            flashError('Governance: ' + errMsg);
             return null;
         }
+        const result = await res.json();
 
         if (result.is_replay) {
             govReplayCount++;
@@ -1115,14 +1125,22 @@ function scheduleFetchQuantaBeta() {
 function initVisibilityHandler() {
   document.addEventListener('visibilitychange', function() {
     if (document.hidden) {
-      // Pause: cancel scheduled fetches and animation
+      // Pause: cancel scheduled fetches, timers, and animation
       if (fetchDataTimerId !== null) { clearTimeout(fetchDataTimerId); fetchDataTimerId = null; }
       if (fetchQBTimerId !== null) { clearTimeout(fetchQBTimerId); fetchQBTimerId = null; }
       if (animFrameId !== null) { cancelAnimationFrame(animFrameId); animFrameId = null; }
+      if (clockTimerId !== null) { clearInterval(clockTimerId); clockTimerId = null; }
+      if (countdownTimerId !== null) { clearInterval(countdownTimerId); countdownTimerId = null; }
+      if (historyTimerId !== null) { clearInterval(historyTimerId); historyTimerId = null; }
     } else {
-      // Resume: restart fetches and animation
+      // Resume: restart fetches, timers, and animation
       fetchData();
       fetchQuantaBeta();
+      fetchHistory();
+      updateClock();
+      if (clockTimerId === null) clockTimerId = setInterval(updateClock, 1000);
+      if (countdownTimerId === null) countdownTimerId = setInterval(tickCountdown, 1000);
+      if (historyTimerId === null) historyTimerId = setInterval(fetchHistory, HISTORY_INTERVAL_MS);
       if (ctx && canvas && animFrameId === null) {
         animateParticles();
       }
@@ -1130,19 +1148,11 @@ function initVisibilityHandler() {
   });
 }
 
-// ── Cooldown CSS injection (Agent 8) ────────────────────────
-function injectCooldownCss() {
-  var style = document.createElement('style');
-  style.textContent = '.alert-row.cooldown .alert-dot { background: var(--warn); opacity: 0.5; }' +
-    '.alert-row.cooldown .alert-status { color: var(--text-muted); font-style: italic; }';
-  document.head.appendChild(style);
-}
-
 // ── Bootstrap ─────────────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', function() {
-  // Inject cooldown CSS (Agent 8)
-  injectCooldownCss();
+var clockTimerId = null;
+var historyTimerId = null;
 
+document.addEventListener('DOMContentLoaded', function() {
   // Tooltip element
   const tooltip = document.createElement('div');
   tooltip.id = 'sparkline-tooltip';
@@ -1151,10 +1161,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
   // Clock
   updateClock();
-  setInterval(updateClock, 1000);
+  clockTimerId = setInterval(updateClock, 1000);
 
   // Countdown
-  countdownTimer = setInterval(tickCountdown, 1000);
+  countdownTimerId = setInterval(tickCountdown, 1000);
 
   // Particle canvas
   initParticles();
@@ -1201,7 +1211,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
   // History fetch (initial + slow interval)
   fetchHistory();
-  setInterval(fetchHistory, HISTORY_INTERVAL_MS);
+  historyTimerId = setInterval(fetchHistory, HISTORY_INTERVAL_MS);
 
   // MarketScope scenario generator
   initMarketScope();
@@ -1362,11 +1372,16 @@ async function generateMarketScopeScenarios() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ symbol: symbol, values: values }),
     });
-    // Parse JSON before checking res.ok for better error messages (Agent 1)
+    if (!resp.ok) {
+      var msErrMsg = 'HTTP ' + resp.status;
+      try { var msErrData = await resp.json(); msErrMsg = msErrData.error || msErrMsg; } catch(_) {}
+      showMsError(msErrMsg);
+      return;
+    }
     const data = await resp.json();
 
-    if (!resp.ok || data.error) {
-      showMsError(data.error || ('HTTP ' + resp.status));
+    if (data.error) {
+      showMsError(data.error);
       return;
     }
 
@@ -1414,7 +1429,7 @@ function renderMarketScopeResult(data) {
       scenEl.innerHTML = data.bands.map(function(sc) {
         return '<div class="ms-scenario ' + escapeHtml(typeClass[sc.scenario] || '') + '">' +
           '<span class="ms-scenario-label">' + escapeHtml(sc.label) + '</span>' +
-          '<span class="ms-scenario-range">[' + escapeHtml(sc.range[0].toFixed(2)) + ' \u2014 ' + escapeHtml(sc.range[1].toFixed(2)) + ']</span>' +
+          '<span class="ms-scenario-range">[' + escapeHtml(Array.isArray(sc.range) && sc.range[0] != null ? sc.range[0].toFixed(2) : '\u2014') + ' \u2014 ' + escapeHtml(Array.isArray(sc.range) && sc.range[1] != null ? sc.range[1].toFixed(2) : '\u2014') + ']</span>' +
           '<span class="ms-scenario-prob">' + escapeHtml(sc.probability) + '</span>' +
         '</div>';
       }).join('');
