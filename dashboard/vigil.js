@@ -867,7 +867,7 @@ function initGovernanceForm() {
     var seal = {
       decision_id: document.getElementById('gov-decision-id').value.trim(),
       action: document.getElementById('gov-action').value.trim(),
-      proposal: document.getElementById('gov-signer').value.trim(),
+      proposal: document.getElementById('gov-proposal').value.trim(),
       seal_hash: document.getElementById('gov-seal-hash').value.trim(),
       sealed_at: new Date().toISOString(),
       quorum_required: parseInt(document.getElementById('gov-threshold').value, 10) || 2,
@@ -880,7 +880,7 @@ function initGovernanceForm() {
 function validateGovernanceForm() {
   var id = document.getElementById('gov-decision-id');
   var action = document.getElementById('gov-action');
-  var proposal = document.getElementById('gov-signer');
+  var proposal = document.getElementById('gov-proposal');
   var hash = document.getElementById('gov-seal-hash');
   var quorum = document.getElementById('gov-quorum');
   var threshold = document.getElementById('gov-threshold');
@@ -1356,12 +1356,15 @@ function initMarketScope() {
     });
 }
 
+let msGenerateInFlight = false;
 async function generateMarketScopeScenarios() {
+  if (msGenerateInFlight) return;
   const btn = document.getElementById('ms-generate');
   const symbolEl = document.getElementById('ms-symbol');
   const valuesEl = document.getElementById('ms-values');
 
   if (!btn || !symbolEl || !valuesEl) return;
+  msGenerateInFlight = true;
 
   const symbol = symbolEl.value.trim() || 'SPX';
   // Trim and validate each value (Agent 5)
@@ -1414,6 +1417,7 @@ async function generateMarketScopeScenarios() {
   } catch (err) {
     showMsError('Failed to reach scenario engine: ' + err.message);
   } finally {
+    msGenerateInFlight = false;
     btn.disabled = false;
     btn.classList.remove('loading');
     btn.innerHTML = '<span class="ms-btn-glyph">&#x2B21;</span> GENERATE SCENARIO BANDS';

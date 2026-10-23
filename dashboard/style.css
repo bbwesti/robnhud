@@ -480,7 +480,6 @@ section.panel.vault-glow::after {
 
 .holding-detail-always { grid-column: 1 / -1; padding-top: 8px; border-top: 1px solid var(--border); margin-top: 6px; }
 .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 12px; }
-.detail-item { font-family: var(--font-data); font-size: 10px; }
 .detail-label { color: var(--text-muted); font-size: 9px; font-family: var(--font-label); letter-spacing: 1px; }
 .detail-val { color: var(--text-primary); }
 
@@ -718,7 +717,6 @@ div.ms-body.panel::before {
 .ms-scenario-label { font-family: var(--font-title); font-size: 11px; color: var(--text-primary); letter-spacing: 1px; }
 .ms-scenario-range { font-family: var(--font-data); font-size: 14px; color: var(--tess-cyan); text-shadow: 0 0 6px rgba(0,229,255,0.2); }
 .ms-scenario-prob { font-size: 10px; color: var(--text-muted); font-family: var(--font-data); }
-.ms-scenario-note { font-size: 10px; color: var(--gold-dim); width: 100%; }
 
 .ms-audit { margin-top: 10px; font-size: 10px; color: var(--text-dim); font-family: var(--font-data); }
 .ms-audit span { display: block; padding: 2px 0; }
@@ -858,9 +856,6 @@ section.panel.governance-panel::after { background: linear-gradient(90deg, trans
 }
 @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
 
-.num-positive { color: var(--gauss) !important; }
-.num-negative { color: var(--danger) !important; }
-.num-neutral { color: var(--text-secondary) !important; }
 
 /* ── Responsive (Agent 9 — extensive improvements) ────────── */
 @media (max-width: 1024px) {
