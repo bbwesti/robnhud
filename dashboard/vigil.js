@@ -1364,7 +1364,6 @@ async function generateMarketScopeScenarios() {
   const valuesEl = document.getElementById('ms-values');
 
   if (!btn || !symbolEl || !valuesEl) return;
-  msGenerateInFlight = true;
 
   const symbol = symbolEl.value.trim() || 'SPX';
   // Trim and validate each value (Agent 5)
@@ -1386,6 +1385,7 @@ async function generateMarketScopeScenarios() {
     return;
   }
 
+  msGenerateInFlight = true;
   clearMsResults();
 
   btn.disabled = true;
